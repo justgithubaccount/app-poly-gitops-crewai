@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(context/**)",
+      "Read(*.pem)",
+      "Read(*.key)",
+      "Read(**/secrets/**)"
+    ],
+    "ask": [
+      "Bash(docker build:*)",
+      "Bash(curl:*)"
+    ],
+    "allow": [
+      "Bash(uv run:*)",
+      "Bash(uv sync:*)",
+      "Bash(uv add:*)",
+      "Bash(pytest:*)",
+      "Bash(python:*)",
+      "Bash(ruff:*)",
+      "Bash(mypy:*)",
+      "Bash(uvicorn:*)",
+      "Bash(wc:*)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(docker logs:*)"
+    ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true,
+    "excludedCommands": ["docker"]
+  },
+  "env": {
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "0"
+  }
+}

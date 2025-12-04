@@ -1,56 +1,175 @@
-> Тестиим кубик от таймвэба за 1 рубль
+# AutoK8sPilot
 
-# AutoK8sPilot Crew
+Multi-agent Kubernetes monitoring and incident management system powered by [crewAI](https://crewai.com).
 
-Welcome to the AutoK8sPilot Crew project, powered by [crewAI](https://crewai.com). This template is designed to help you set up a multi-agent AI system with ease, leveraging the powerful and flexible framework provided by crewAI. Our goal is to enable your agents to collaborate effectively on complex tasks, maximizing their collective intelligence and capabilities.
+## Features
 
-## Installation
+- **9 Specialized Agents**: k8s_operator, reporting_analyst, infra_architect, argocd_observer, loki_analyst, incident_triager, cloudflare_admin, llm_gateway_observer, mcp_bridge
+- **17 Tasks**: From pods overview to incident creation
+- **YAML Flow Orchestration**: Define execution flows in YAML
+- **FastAPI REST API**: HTTP endpoints for flow execution
+- **Observability**: OpenTelemetry tracing + structlog JSON logging
+- **Docker Ready**: Multi-stage build with uv package manager
 
-Ensure you have Python >=3.10 <3.14 installed on your system. This project uses [UV](https://docs.astral.sh/uv/) for dependency management and package handling, offering a seamless setup and execution experience.
+## Quick Start
 
-First, if you haven't already, install uv:
+### Local Development
 
 ```bash
+# Install dependencies
 pip install uv
+uv sync --dev
+
+# Run API server
+uv run api
+
+# Or run crew directly
+uv run run_crew
 ```
 
-Next, navigate to your project directory and install the dependencies:
-
-(Optional) Lock the dependencies and install them by using the CLI command:
-```bash
-crewai install
-```
-### Customizing
-
-**Add your `OPENAI_API_KEY` into the `.env` file**
-
-- Modify `src/auto_k8s_pilot/config/agents.yaml` to define your agents
-- Modify `src/auto_k8s_pilot/config/tasks.yaml` to define your tasks
-- Modify `src/auto_k8s_pilot/crew.py` to add your own logic, tools and specific args
-- Modify `src/auto_k8s_pilot/main.py` to add custom inputs for your agents and tasks
-
-## Running the Project
-
-To kickstart your crew of AI agents and begin task execution, run this from the root folder of your project:
+### Docker
 
 ```bash
-$ crewai run
+# Build image
+docker build -t auto-k8s-pilot .
+
+# Run container
+docker run -p 8000:8000 \
+  -e OPENROUTER_API_KEY=your-key \
+  auto-k8s-pilot
 ```
 
-This command initializes the AutoK8sPilot Crew, assembling the agents and assigning them tasks as defined in your configuration.
+## API Endpoints
 
-This example, unmodified, will run the create a `report.md` file with the output of a research on LLMs in the root folder.
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Health check |
+| GET | `/flows` | List available flows |
+| GET | `/agents` | List available agents |
+| POST | `/run` | Run default flow (k8s-healthcheck) |
+| POST | `/run/{flow_name}` | Run specific flow |
 
-## Understanding Your Crew
+### Example
 
-The AutoK8sPilot Crew is composed of multiple AI agents, each with unique roles, goals, and tools. These agents collaborate on a series of tasks, defined in `config/tasks.yaml`, leveraging their collective skills to achieve complex objectives. The `config/agents.yaml` file outlines the capabilities and configurations of each agent in your crew.
+```bash
+# Health check
+curl http://localhost:8000/health
+# {"status":"ok"}
 
-## Support
+# List flows
+curl http://localhost:8000/flows
+# {"flows":["k8s-healthcheck","infra-health"]}
 
-For support, questions, or feedback regarding the AutoK8sPilot Crew or crewAI.
-- Visit our [documentation](https://docs.crewai.com)
-- Reach out to us through our [GitHub repository](https://github.com/joaomdmoura/crewai)
-- [Join our Discord](https://discord.com/invite/X4JWnZnxPb)
-- [Chat with our docs](https://chatg.pt/DWjSBZn)
+# List agents
+curl http://localhost:8000/agents
+# {"agents":["k8s_operator","reporting_analyst",...]}
 
-Let's create wonders together with the power and simplicity of crewAI.
+# Run flow
+curl -X POST http://localhost:8000/run \
+  -H "Content-Type: application/json" \
+  -d '{"namespace":"default"}'
+```
+
+## Configuration
+
+### Environment Variables
+
+Copy `.env.example` to `.env` and configure:
+
+```bash
+# Core
+DEFAULT_NAMESPACE=default
+ALLOW_MUTATING=false
+
+# API Server
+API_HOST=0.0.0.0
+API_PORT=8000
+
+# OpenTelemetry
+OTEL_SERVICE_NAME=auto-k8s-pilot
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+
+# LLM Gateway
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_API_KEY=your-key
+
+# Optional integrations
+# ARGOCD_BASE_URL=https://argocd.example.com
+# ARGOCD_API_TOKEN=
+# LOKI_URL=http://loki:3100
+# CLOUDFLARE_API_TOKEN=
+# GITHUB_TOKEN=
+```
+
+### YAML Flows
+
+Flows are defined in `src/auto_k8s_pilot/config/layers/`:
+
+- `flow-k8s-healthcheck.yaml` - Kubernetes health monitoring
+- `flow-infra-health.yaml` - Infrastructure health check
+
+Example flow:
+
+```yaml
+steps:
+  - run: k8s_pods_overview
+  - run: explain_pods
+  - run: k8s_top_nodes
+  - run: cluster_summary
+  - run: incident_create_issue_if_needed
+```
+
+## Project Structure
+
+```
+src/auto_k8s_pilot/
+├── api.py              # FastAPI REST API
+├── crew.py             # CrewAI agents and tasks
+├── flow_runner.py      # YAML flow orchestrator
+├── settings.py         # Pydantic settings
+├── tools/              # Custom tools (kubectl, argocd, loki, etc.)
+├── config/
+│   ├── agents.yaml     # Agent definitions
+│   ├── tasks.yaml      # Task definitions
+│   └── layers/
+│       ├── behavior.yaml
+│       ├── flow-k8s-healthcheck.yaml
+│       └── flow-infra-health.yaml
+└── observability/
+    ├── logger.py       # structlog JSON logging
+    └── tracing.py      # OpenTelemetry setup
+```
+
+## Agents
+
+| Agent | Role |
+|-------|------|
+| k8s_operator | Kubernetes cluster operations |
+| reporting_analyst | Report generation |
+| infra_architect | Infrastructure analysis |
+| argocd_observer | ArgoCD monitoring |
+| loki_analyst | Log analysis |
+| incident_triager | Incident management |
+| cloudflare_admin | DNS management |
+| llm_gateway_observer | LLM gateway health |
+| mcp_bridge | MCP server integration |
+
+## Development
+
+```bash
+# Install dev dependencies
+uv sync --dev
+
+# Run tests
+uv run pytest
+
+# Type check
+uv run mypy src/
+
+# Lint
+uv run ruff check src/
+```
+
+## License
+
+MIT
