@@ -1,5 +1,7 @@
 """Tests for settings module."""
 
+from importlib.metadata import version
+
 from auto_k8s_pilot.settings import CONFIG_DIR, LAYERS_DIR, SETTINGS, Settings
 
 
@@ -93,3 +95,9 @@ def test_openrouter_base_url_default():
     """Test OpenRouter base URL has default value."""
     settings = Settings()
     assert settings.OPENROUTER_BASE_URL == "https://openrouter.ai/api/v1"
+
+
+def test_app_version_defaults_to_installed_package_version(monkeypatch):
+    monkeypatch.delenv("APP_VERSION", raising=False)
+
+    assert Settings().APP_VERSION == version("auto-k8s-pilot")

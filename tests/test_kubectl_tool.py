@@ -49,3 +49,21 @@ def test_get_uses_default_kubectl_config_when_env_is_unset(monkeypatch):
 
     assert "pod-1" in out
     assert not any(arg.startswith("--kubeconfig=") for arg in captured["cmd"])
+
+
+def test_top_nodes_ignores_namespace_because_nodes_are_cluster_scoped(monkeypatch):
+    captured = {}
+
+    def fake_run(cmd, capture_output, text, timeout):
+        captured["cmd"] = cmd
+        return Proc(0, "node-a   100m   5%   1Gi   25%\n", "")
+
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.delenv("KUBECONFIG", raising=False)
+
+    out = KubectlTool()._run(action="top", kind="nodes", namespace="all")
+
+    assert "node-a" in out
+    assert captured["cmd"] == ["kubectl", "top", "nodes"]

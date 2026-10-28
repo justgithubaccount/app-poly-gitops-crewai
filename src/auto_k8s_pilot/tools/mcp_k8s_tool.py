@@ -48,7 +48,7 @@ class MCPK8sTool(BaseTool):
                             "url": settings.MCP_K8S_SERVER_URL or "ws://localhost:8765",
                             "headers": {
                                 "Authorization": (
-                                    f"Bearer {settings.MCP_K8S_API_KEY}"
+                                    "Bearer ${MCP_K8S_API_KEY}"
                                     if settings.MCP_K8S_API_KEY
                                     else ""
                                 )

@@ -13,7 +13,7 @@ from auto_k8s_pilot.settings import CONFIG_DIR, SETTINGS
 app = FastAPI(
     title="AutoK8sPilot API",
     description="Multi-agent AI service for Kubernetes cluster monitoring",
-    version="1.0.0",
+    version=SETTINGS.APP_VERSION,
 )
 
 # Setup OpenTelemetry tracing

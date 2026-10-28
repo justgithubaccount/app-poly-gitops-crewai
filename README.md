@@ -104,10 +104,15 @@ OPENROUTER_API_KEY=your-key
 # Optional integrations
 # ARGOCD_BASE_URL=https://argocd.example.com
 # ARGOCD_API_TOKEN=
+ARGOCD_VERIFY_SSL=true
 # LOKI_URL=http://loki:3100
 # CLOUDFLARE_API_TOKEN=
 # GITHUB_TOKEN=
 ```
+
+Mutating tools, including Argo CD sync, Cloudflare DNS upsert, and GitHub issue
+creation, require `ALLOW_MUTATING=true`. MCP configuration output references
+`MCP_K8S_API_KEY` by name and never includes its secret value.
 
 ### YAML Flows
 

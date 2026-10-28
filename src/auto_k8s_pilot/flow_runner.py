@@ -67,6 +67,8 @@ class FlowRunner:
             raise FileNotFoundError(f"Flow not found: {flow_name}")
         with open(path) as f:
             flow_config = yaml.safe_load(f)
+        if not isinstance(flow_config, dict):
+            raise ValueError(f"Flow config must be a mapping: {path}")
         steps_count = len(flow_config.get("steps", []))
         log.bind(steps_count=steps_count).info("Flow loaded successfully")
         return flow_config
@@ -190,17 +192,20 @@ class FlowRunner:
         """Load behavior.yaml."""
         path = self.config_dir / "layers" / "behavior.yaml"
         with open(path) as f:
-            return yaml.safe_load(f)
+            behavior = yaml.safe_load(f)
+        if not isinstance(behavior, dict):
+            raise ValueError(f"Behavior config must be a mapping: {path}")
+        return behavior
 
     def _extract_final_answer(self, results: List[Dict[str, Any]]) -> str:
         """Get final answer from incident_create_issue_if_needed or last step."""
         for r in reversed(results):
             if r["task"] == "incident_create_issue_if_needed":
-                return r["output"]
+                return str(r["output"])
             if r["task"] == "cluster_summary":
-                return r["output"]
+                return str(r["output"])
         if results:
-            return results[-1]["output"]
+            return str(results[-1]["output"])
         return ""
 
     def _extract_metadata(self, results: List[Dict[str, Any]]) -> dict:

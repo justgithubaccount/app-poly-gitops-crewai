@@ -36,7 +36,7 @@ class ArgoCDTool(BaseTool):
                     f"{base}/api/v1/applications",
                     headers=headers,
                     timeout=10,
-                    verify=False,
+                    verify=settings.ARGOCD_VERIFY_SSL,
                 )
                 r.raise_for_status()
                 items = [a.get("metadata", {}).get("name") for a in r.json().get("items", [])]
@@ -48,7 +48,7 @@ class ArgoCDTool(BaseTool):
                     f"{base}/api/v1/applications/{app}",
                     headers=headers,
                     timeout=10,
-                    verify=False,
+                    verify=settings.ARGOCD_VERIFY_SSL,
                 )
                 r.raise_for_status()
                 data = r.json()
@@ -64,7 +64,7 @@ class ArgoCDTool(BaseTool):
                     f"{base}/api/v1/applications/{app}/sync",
                     headers=headers,
                     timeout=10,
-                    verify=False,
+                    verify=settings.ARGOCD_VERIFY_SSL,
                 )
                 r.raise_for_status()
                 return f"Triggered sync for {app}"

@@ -1,5 +1,7 @@
 """Tests for FastAPI endpoints."""
 
+from importlib.metadata import version
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -17,6 +19,13 @@ def test_health_endpoint(client):
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_openapi_uses_installed_package_version(client):
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    assert response.json()["info"]["version"] == version("auto-k8s-pilot")
 
 
 def test_flows_endpoint(client):

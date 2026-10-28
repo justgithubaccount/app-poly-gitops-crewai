@@ -127,3 +127,6 @@ def test_k8s_health_prompts_are_grounded_and_namespace_aware():
 
     top_nodes = tasks["k8s_top_nodes"]["description"]
     assert "Do not claim that Metrics Server is running" in top_nodes
+
+    incident = tasks["incident_create_issue_if_needed"]["description"]
+    assert "ALLOW_MUTATING=true" in incident

@@ -20,6 +20,8 @@ class GitHubIssueTool(BaseTool):
 
     def _run(self, repo: str, title: str, body: str) -> str:
         settings = Settings()
+        if not settings.ALLOW_MUTATING:
+            return "ERROR: Mutating ops disabled (ALLOW_MUTATING=false)"
         token = settings.GITHUB_TOKEN
         if not token:
             return "ERROR: GITHUB_TOKEN is not set."
