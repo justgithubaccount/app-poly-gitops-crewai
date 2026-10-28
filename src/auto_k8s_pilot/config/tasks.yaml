@@ -19,16 +19,17 @@ explain_pods:
 
 cluster_summary:
   description: >
-    Analyze the raw 'kubectl get pods -A' output and provide a high-level summary
-    of what components are installed in the cluster. Group them by purpose:
-    - core Kubernetes system
-    - networking (CNI)
-    - ingress
-    - GitOps / CI/CD (e.g., ArgoCD)
-    - observability (Vector, Loki, Grafana, OpenTelemetry)
-    - applications (e.g., chat-api)
+    Analyze the raw Kubernetes outputs from the previous tasks and provide a
+    high-level summary. Only report components explicitly present in those
+    outputs. Do not infer components from a typical Kubernetes architecture,
+    from the task instructions, or from examples such as Argo CD, an ingress
+    controller, Vector, Loki, Grafana, or OpenTelemetry. For an expected
+    category with no direct evidence, say "not observed in the supplied
+    snapshot". Treat tool errors and unavailable metrics as unknown, not as
+    proof that a component is installed, absent, healthy, or unhealthy.
   expected_output: >
-    Human-readable explanation of cluster architecture with detected components, roles, and health notes.
+    Evidence-grounded explanation of detected components, their observed
+    status, and explicit unknowns. No fabricated or assumed components.
   agent: infra_architect
 
 # --- ArgoCD / GitOps ----------------------------------------------------
@@ -89,8 +90,10 @@ loki_http_activity_chat_api:
 # --- K8s resource pressure ----------------------------------------------
 k8s_top_nodes:
   description: >
-    Use kubectl_tool with action="top", kind="nodes" to fetch node-level CPU/MEM usage.
-    Output tool result verbatim.
+    Call kubectl_tool exactly once with action="top", kind="nodes" to fetch
+    node-level CPU/MEM usage. Output the tool result verbatim. Do not claim
+    that Metrics Server is running or diagnose the error unless the tool output
+    explicitly provides that evidence.
   expected_output: >
     Exact stdout from kubectl top nodes.
   agent: k8s_operator
@@ -99,8 +102,10 @@ k8s_top_nodes:
 
 k8s_top_pods_ns_default:
   description: >
-    Use kubectl_tool with action="top", kind="pods" and namespace "default".
-    Output tool result verbatim.
+    Read the namespace from the flow context and call kubectl_tool exactly once
+    with action="top", kind="pods" and that namespace. Use default only when no namespace
+    is present in the flow context. Output the tool result verbatim;
+    do not rewrite or diagnose it.
   expected_output: >
     Exact stdout from kubectl top pods.
   agent: k8s_operator

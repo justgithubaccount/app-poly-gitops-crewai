@@ -107,3 +107,23 @@ def test_tasks_have_required_fields():
     for task_id, task_config in tasks.items():
         assert "description" in task_config, f"Task {task_id} missing 'description'"
         assert "expected_output" in task_config, f"Task {task_id} missing 'expected_output'"
+
+
+def test_k8s_health_prompts_are_grounded_and_namespace_aware():
+    """Health reports must not invent components or ignore the requested namespace."""
+    tasks_file = CONFIG_DIR / "tasks.yaml"
+
+    with open(tasks_file) as f:
+        tasks = yaml.safe_load(f)
+
+    summary = tasks["cluster_summary"]["description"]
+    assert "Only report components explicitly present" in summary
+    assert "not observed in the supplied snapshot" in summary
+    assert "Do not infer" in summary
+
+    top_pods = tasks["k8s_top_pods_ns_default"]["description"]
+    assert "namespace from the flow context" in top_pods
+    assert "default only when no namespace" in top_pods
+
+    top_nodes = tasks["k8s_top_nodes"]["description"]
+    assert "Do not claim that Metrics Server is running" in top_nodes
