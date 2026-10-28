@@ -73,11 +73,15 @@ def test_flow_k8s_healthcheck_structure():
         flow = yaml.safe_load(f)
 
     assert "steps" in flow
-    assert len(flow["steps"]) >= 5
-
-    # Check key steps exist
     step_tasks = [s.get("run") for s in flow["steps"]]
-    assert "k8s_pods_overview" in step_tasks
+    assert step_tasks == [
+        "k8s_top_nodes",
+        "k8s_top_pods_ns_default",
+        "k8s_pods_overview",
+        "explain_pods",
+        "cluster_summary",
+        "k8s_events_recent",
+    ]
 
 
 def test_agents_have_required_fields():

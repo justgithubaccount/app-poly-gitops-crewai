@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     OTEL_SERVICE_NAME: str = "auto-k8s-pilot"
     OTEL_EXPORTER_OTLP_ENDPOINT: str = "http://localhost:4318"
     ENVIRONMENT: str = "development"
-    APP_VERSION: str = "0.1.0"
+    APP_VERSION: str = "0.1.1"
 
     # Kubernetes metadata (set by downward API in K8s)
     K8S_POD_NAME: str = ""

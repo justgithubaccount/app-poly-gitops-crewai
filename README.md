@@ -35,7 +35,7 @@ docker build -t auto-k8s-pilot .
 
 # Run container
 docker run -p 8000:8000 \
-  -e OPENROUTER_API_KEY=your-key \
+  -e OPENAI_API_KEY=your-key \
   auto-k8s-pilot
 ```
 
@@ -85,6 +85,7 @@ Copy `.env.example` to `.env` and configure:
 # Core
 DEFAULT_NAMESPACE=default
 ALLOW_MUTATING=false
+OPENAI_API_KEY=your-key
 
 # API Server
 API_HOST=0.0.0.0
@@ -94,7 +95,7 @@ API_PORT=8000
 OTEL_SERVICE_NAME=auto-k8s-pilot
 OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
 
-# LLM Gateway
+# Optional OpenRouter gateway health integration
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 OPENROUTER_API_KEY=your-key
 

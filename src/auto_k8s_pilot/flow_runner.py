@@ -133,19 +133,25 @@ class FlowRunner:
             )
             step_log.info("Executing task")
 
-            # Execute task via task.run() — agent is called internally by CrewAI
+            # Execute the task through CrewAI's supported synchronous API.
             start = time.time()
             try:
                 task = task_method()  # Get CrewAI Task object
-                # Pass inputs + accumulated context
-                result = task.run(context={**inputs, **context})
-                output = str(result)
+                task_context = yaml.safe_dump(
+                    {**inputs, **context},
+                    allow_unicode=True,
+                    sort_keys=False,
+                )
+                task_output = task.execute_sync(context=task_context)
+                output = task_output.raw
                 step_log.bind(
                     event="step_complete", duration_ms=int((time.time() - start) * 1000)
                 ).info("Task completed")
             except Exception as e:
-                output = f"ERROR: {e}"
                 step_log.bind(event="step_error", error=str(e)).error("Task failed")
+                raise RuntimeError(
+                    f"Flow '{flow_name}' failed at task '{task_id}': {e}"
+                ) from e
 
             duration_ms = int((time.time() - start) * 1000)
 
