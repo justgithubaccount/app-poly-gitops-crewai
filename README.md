@@ -9,6 +9,8 @@ Multi-agent Kubernetes monitoring and incident management system powered by [cre
 - **YAML Flow Orchestration**: Define execution flows in YAML
 - **FastAPI REST API**: HTTP endpoints for flow execution
 - **Observability**: OpenTelemetry tracing + structlog JSON logging
+- **Grounded health reports**: Cluster summaries distinguish observed resources
+  from unavailable metrics and unverified components
 - **Docker Ready**: Multi-stage build with uv package manager
 
 ## Quick Start
