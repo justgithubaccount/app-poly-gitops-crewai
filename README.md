@@ -39,6 +39,11 @@ docker run -p 8000:8000 \
   auto-k8s-pilot
 ```
 
+Published releases are available as
+`ghcr.io/justgithubaccount/app-poly-gitops-crewai:<version>`. The container includes
+the matching Kubernetes `kubectl` client and automatically configures the mounted
+service-account identity when it runs inside a cluster.
+
 ## API Endpoints
 
 | Method | Path | Description |

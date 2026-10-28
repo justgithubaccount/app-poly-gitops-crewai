@@ -1,7 +1,9 @@
+from typing import Literal, Optional, Type
+
 import requests
-from typing import Type, Literal, Optional
-from pydantic import BaseModel, Field
 from crewai.tools import BaseTool
+from pydantic import BaseModel, Field
+
 from auto_k8s_pilot.settings import Settings
 
 
@@ -30,14 +32,24 @@ class ArgoCDTool(BaseTool):
 
         try:
             if op == "list_apps":
-                r = requests.get(f"{base}/api/v1/applications", headers=headers, timeout=10, verify=False)
+                r = requests.get(
+                    f"{base}/api/v1/applications",
+                    headers=headers,
+                    timeout=10,
+                    verify=False,
+                )
                 r.raise_for_status()
                 items = [a.get("metadata", {}).get("name") for a in r.json().get("items", [])]
                 return "Apps:\n" + "\n".join(items[:100])
             elif op == "app_status":
                 if not app:
                     return "ERROR: 'app' required"
-                r = requests.get(f"{base}/api/v1/applications/{app}", headers=headers, timeout=10, verify=False)
+                r = requests.get(
+                    f"{base}/api/v1/applications/{app}",
+                    headers=headers,
+                    timeout=10,
+                    verify=False,
+                )
                 r.raise_for_status()
                 data = r.json()
                 sync = data.get("status", {}).get("sync", {})
@@ -48,7 +60,12 @@ class ArgoCDTool(BaseTool):
                     return "ERROR: Mutating ops disabled (ALLOW_MUTATING=false)"
                 if not app:
                     return "ERROR: 'app' required"
-                r = requests.post(f"{base}/api/v1/applications/{app}/sync", headers=headers, timeout=10, verify=False)
+                r = requests.post(
+                    f"{base}/api/v1/applications/{app}/sync",
+                    headers=headers,
+                    timeout=10,
+                    verify=False,
+                )
                 r.raise_for_status()
                 return f"Triggered sync for {app}"
             else:

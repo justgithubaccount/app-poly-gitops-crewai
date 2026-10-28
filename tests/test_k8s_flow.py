@@ -1,12 +1,15 @@
 # tests/test_k8s_flow.py
-from crewai import Crew, Process
-from auto_k8s_pilot.crew import AutoK8sPilot
-from auto_k8s_pilot.tools import kubectl_tool as ktool
-import litellm
 import types
 
+import litellm
+from crewai import Crew, Process
 
-def test_k8s_health_flow(monkeypatch):
+from auto_k8s_pilot.crew import AutoK8sPilot
+from auto_k8s_pilot.tools import kubectl_tool as ktool
+
+
+def test_k8s_health_flow(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
     def fake_run(self, action, **kwargs):
         if action == "get":
             return "pod-1 1/1 Running 2d node-a\npod-2 0/1 CrashLoopBackOff 1h node-b\n"

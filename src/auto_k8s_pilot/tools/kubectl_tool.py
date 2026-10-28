@@ -1,17 +1,23 @@
-import subprocess, json
-from typing import Type, Optional, Literal
-from pydantic import BaseModel, Field, validator
+import subprocess
+from typing import Literal, Optional, Type
+
 from crewai.tools import BaseTool
-from auto_k8s_pilot.settings import Settings
+from pydantic import BaseModel, Field, field_validator
+
+from auto_k8s_pilot.settings import SETTINGS, Settings
 
 
 class KubectlInput(BaseModel):
-    action: Literal["get", "logs", "describe", "top", "rollout_restart", "cordon", "uncordon"] = Field(
+    action: Literal[
+        "get", "logs", "describe", "top", "rollout_restart", "cordon", "uncordon"
+    ] = Field(
         ..., description="Kubernetes action"
     )
     kind: Optional[str] = Field(None, description="Resource kind, e.g. pods, deploy, sts")
     name: Optional[str] = Field(None, description="Resource name, optional")
-    namespace: Optional[str] = Field(None, description="Kubernetes namespace, defaults to env DEFAULT_NAMESPACE")
+    namespace: Optional[str] = Field(
+        None, description="Kubernetes namespace, defaults to env DEFAULT_NAMESPACE"
+    )
     selector: Optional[str] = Field(None, description='Label selector, e.g. app=web')
     container: Optional[str] = Field(None, description='Container name for logs')
     tail: int = Field(200, description="Lines for logs")
@@ -19,9 +25,10 @@ class KubectlInput(BaseModel):
     limit: int = Field(200, description="Max items for get (server-side)")
     context: Optional[str] = Field(None, description="Kube context override")
 
-    @validator("namespace", always=True)
-    def default_ns(cls, v):
-        return v or SETTINGS.DEFAULT_NAMESPACE
+    @field_validator("namespace", mode="before")
+    @classmethod
+    def default_ns(cls, value):
+        return value or SETTINGS.DEFAULT_NAMESPACE
 
 
 class KubectlTool(BaseTool):
@@ -52,8 +59,10 @@ class KubectlTool(BaseTool):
         if action in mutating_actions and not allow_mutating:
             return "ERROR: Mutating actions are disabled. Set ALLOW_MUTATING=true to enable."
 
-        kubeconfig = settings.KUBECONFIG or "~/.kube/config"
-        base = ["kubectl", f"--kubeconfig={kubeconfig}"]
+        kubeconfig = settings.KUBECONFIG
+        base = ["kubectl"]
+        if kubeconfig:
+            base.append(f"--kubeconfig={kubeconfig}")
         if context:
             base += [f"--context={context}"]
 
@@ -130,7 +139,9 @@ class KubectlTool(BaseTool):
             return f"ERROR: execution failed ({e})"
 
         if proc.returncode != 0:
-            stderr = proc.stderr.replace(kubeconfig, "<KUBECONFIG>")
+            stderr = proc.stderr
+            if kubeconfig:
+                stderr = stderr.replace(kubeconfig, "<KUBECONFIG>")
             return f"ERROR: kubectl exited {proc.returncode}: {stderr.strip()[:4000]}"
 
         out = proc.stdout.strip()

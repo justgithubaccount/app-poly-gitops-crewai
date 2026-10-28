@@ -1,8 +1,10 @@
 import datetime as dt
-import requests
-from pydantic import BaseModel, Field
-from crewai.tools import BaseTool
 from typing import Type
+
+import requests
+from crewai.tools import BaseTool
+from pydantic import BaseModel, Field
+
 from auto_k8s_pilot.settings import Settings
 
 

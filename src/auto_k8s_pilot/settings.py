@@ -35,7 +35,8 @@ class Settings(BaseSettings):
     MCP_K8S_SERVER_URL: Optional[str] = None   # ws:// or wss:// if applicable
     MCP_K8S_API_KEY: Optional[str] = None
     MCP_K8S_INSECURE: bool = False
-    MCP_K8S_CMD: Optional[str] = None          # optional: stdio command (e.g., "mcp-server-kubernetes")
+    # Optional stdio command, for example "mcp-server-kubernetes".
+    MCP_K8S_CMD: Optional[str] = None
 
     # API Server
     API_HOST: str = "0.0.0.0"

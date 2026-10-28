@@ -1,7 +1,9 @@
 import json
-from typing import Type, Literal
-from pydantic import BaseModel, Field
+from typing import Literal, Type
+
 from crewai.tools import BaseTool
+from pydantic import BaseModel, Field
+
 from auto_k8s_pilot.settings import Settings
 
 
@@ -15,9 +17,9 @@ class MCPK8sTool(BaseTool):
     args_schema: Type[BaseModel] = MCPK8sInput
 
     def _run(self, op: str) -> str:
+        settings = Settings()
         if op == "env_check":
             missing = []
-            settings = Settings()
             if not (settings.MCP_K8S_SERVER_URL or settings.MCP_K8S_CMD):
                 missing.append("MCP_K8S_SERVER_URL or MCP_K8S_CMD")
             details = {
@@ -35,7 +37,7 @@ class MCPK8sTool(BaseTool):
                         "kubernetes": {
                             "command": settings.MCP_K8S_CMD or "mcp-server-kubernetes",
                             "args": [],
-                            "env": {}
+                            "env": {},
                         }
                     }
                 },
@@ -45,9 +47,13 @@ class MCPK8sTool(BaseTool):
                             "transport": "websocket",
                             "url": settings.MCP_K8S_SERVER_URL or "ws://localhost:8765",
                             "headers": {
-                                "Authorization": f"Bearer {settings.MCP_K8S_API_KEY}" if settings.MCP_K8S_API_KEY else ""
+                                "Authorization": (
+                                    f"Bearer {settings.MCP_K8S_API_KEY}"
+                                    if settings.MCP_K8S_API_KEY
+                                    else ""
+                                )
                             },
-                            "insecure": settings.MCP_K8S_INSECURE
+                            "insecure": settings.MCP_K8S_INSECURE,
                         }
                     }
                 }

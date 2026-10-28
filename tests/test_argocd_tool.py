@@ -1,5 +1,7 @@
-import os, json
+import os
+
 from auto_k8s_pilot.tools.argocd_tool import ArgoCDTool
+
 
 class Resp:
     def __init__(self, payload, status=200):
