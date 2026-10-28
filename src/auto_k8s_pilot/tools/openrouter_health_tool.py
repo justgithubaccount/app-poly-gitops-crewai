@@ -1,7 +1,9 @@
+from typing import Literal, Type
+
 import requests
-from typing import Type, Literal
-from pydantic import BaseModel, Field
 from crewai.tools import BaseTool
+from pydantic import BaseModel, Field
+
 from auto_k8s_pilot.settings import Settings
 
 
@@ -17,7 +19,11 @@ class OpenRouterHealthTool(BaseTool):
 
     def _headers(self):
         settings = Settings()
-        h = {"Authorization": f"Bearer {settings.OPENROUTER_API_KEY}"} if settings.OPENROUTER_API_KEY else {}
+        h = (
+            {"Authorization": f"Bearer {settings.OPENROUTER_API_KEY}"}
+            if settings.OPENROUTER_API_KEY
+            else {}
+        )
         if settings.OPENROUTER_SITE_URL:
             h["HTTP-Referer"] = settings.OPENROUTER_SITE_URL
         if settings.OPENROUTER_APP_NAME:

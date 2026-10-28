@@ -24,5 +24,5 @@ kube-system     konnectivity-agent-gz84m                           1/1   Running
 kube-system     konnectivity-agent-wc2xr                           1/1   Running   0     3d6h   10.244.98.194   worker-192.168.0.5   <none>   <none>
 kube-system     kube-proxy-8w7vs                                   1/1   Running   0     3d6h   192.168.0.6     worker-192.168.0.6   <none>   <none>
 kube-system     kube-proxy-h4vkx                                   1/1   Running   0     3d6h   192.168.0.5     worker-192.168.0.5   <none>   <none>
-kube-system     metrics-server-65db485c9d-tpff6                    1/1   Running   0     3d6h   10.244.98.195   worker-192.168.0.5   <none>   <none>
+kube-system     metrics-server-65db485c9d8-tpff6                    1/1   Running   0     3d6h   10.244.98.195   worker-192.168.0.5   <none>   <none>
 ```

@@ -5,7 +5,6 @@ build/
 dist/
 wheels/
 *.egg-info
-uv.lock
 
 # Node-generated files
 node_modules

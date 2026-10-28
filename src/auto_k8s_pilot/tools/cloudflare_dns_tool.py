@@ -1,7 +1,9 @@
+from typing import Literal, Optional, Type
+
 import requests
-from typing import Type, Optional, Literal
-from pydantic import BaseModel, Field
 from crewai.tools import BaseTool
+from pydantic import BaseModel, Field
+
 from auto_k8s_pilot.settings import Settings
 
 
@@ -28,8 +30,16 @@ class CloudflareDNSTool(BaseTool):
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
         return headers, zone, None
 
-    def _run(self, op: str, name: Optional[str] = None, type: Optional[str] = None,
-             content: Optional[str] = None, proxied: Optional[bool] = None, ttl: Optional[int] = None) -> str:
+    def _run(
+        self,
+        op: str,
+        name: Optional[str] = None,
+        type: Optional[str] = None,
+        content: Optional[str] = None,
+        proxied: Optional[bool] = None,
+        ttl: Optional[int] = None,
+    ) -> str:
+        settings = Settings()
         headers, zone, err = self._base()
         if err:
             return err
@@ -40,7 +50,13 @@ class CloudflareDNSTool(BaseTool):
                 r = requests.get(base, headers=headers, timeout=10)
                 r.raise_for_status()
                 data = r.json().get("result", [])
-                lines = [f"{d.get('type')} {d.get('name')} {d.get('content')} proxied={d.get('proxied')} ttl={d.get('ttl')}" for d in data[:100]]
+                lines = [
+                    (
+                        f"{d.get('type')} {d.get('name')} {d.get('content')} "
+                        f"proxied={d.get('proxied')} ttl={d.get('ttl')}"
+                    )
+                    for d in data[:100]
+                ]
                 return "Records:\n" + "\n".join(lines)
             elif op == "get":
                 if not name:
@@ -51,13 +67,21 @@ class CloudflareDNSTool(BaseTool):
                 if not rs:
                     return "NOT FOUND"
                 d = rs[0]
-                return f"{d.get('type')} {d.get('name')} {d.get('content')} proxied={d.get('proxied')} ttl={d.get('ttl')} id={d.get('id')}"
+                return (
+                    f"{d.get('type')} {d.get('name')} {d.get('content')} "
+                    f"proxied={d.get('proxied')} ttl={d.get('ttl')} id={d.get('id')}"
+                )
             elif op == "upsert":
                 if not settings.ALLOW_MUTATING:
                     return "ERROR: Mutating ops disabled (ALLOW_MUTATING=false)"
                 if not all([name, type, content]):
                     return "ERROR: name/type/content required"
-                r = requests.get(base, headers=headers, params={"name": name, "type": type}, timeout=10)
+                r = requests.get(
+                    base,
+                    headers=headers,
+                    params={"name": name, "type": type},
+                    timeout=10,
+                )
                 r.raise_for_status()
                 rs = r.json().get("result", [])
                 payload = {"type": type, "name": name, "content": content}
