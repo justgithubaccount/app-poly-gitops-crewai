@@ -96,6 +96,7 @@ API_PORT=8000
 # OpenTelemetry
 OTEL_SERVICE_NAME=auto-k8s-pilot
 OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+OTEL_TRACES_EXPORTER=otlp
 
 # Optional OpenRouter gateway health integration
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
