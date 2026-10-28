@@ -3,6 +3,7 @@
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
+from opentelemetry.trace import get_current_span
 from pydantic import BaseModel
 
 from auto_k8s_pilot.crew import AutoK8sPilot
@@ -99,10 +100,15 @@ async def run_flow_endpoint(flow_name: str, request: RunRequest):
             total_duration_ms=result["metadata"].get("total_duration_ms", 0),
         ).info("Flow execution completed")
 
+        metadata = dict(result["metadata"])
+        span_context = get_current_span().get_span_context()
+        if span_context.is_valid:
+            metadata["trace_id"] = format(span_context.trace_id, "032x")
+
         return RunResponse(
             final_answer=result["final_answer"],
             steps=[StepResult(**s) for s in result["steps"]],
-            metadata=result["metadata"],
+            metadata=metadata,
         )
     except FileNotFoundError:
         log.bind(event="flow_not_found").warning(f"Flow not found: {flow_name}")

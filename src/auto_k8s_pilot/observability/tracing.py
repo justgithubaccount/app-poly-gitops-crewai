@@ -30,6 +30,15 @@ def setup_tracing(app: Any) -> None:
     Setup OpenTelemetry for traces.
     Production-ready configuration for Kubernetes.
     """
+    otlp_endpoint = SETTINGS.OTEL_EXPORTER_OTLP_ENDPOINT.strip().rstrip("/")
+    if (
+        SETTINGS.OTEL_SDK_DISABLED
+        or SETTINGS.OTEL_TRACES_EXPORTER.strip().lower() != "otlp"
+        or not otlp_endpoint
+    ):
+        logging.getLogger(__name__).info("OpenTelemetry export disabled")
+        return
+
     # Resource with service and Kubernetes metadata
     resource = Resource(
         attributes={
@@ -45,9 +54,6 @@ def setup_tracing(app: Any) -> None:
             "k8s.pod.uid": SETTINGS.K8S_POD_UID or "unknown",
         }
     )
-
-    # OTLP endpoint
-    otlp_endpoint = SETTINGS.OTEL_EXPORTER_OTLP_ENDPOINT
 
     # For HTTP protocol add correct paths
     traces_endpoint = (

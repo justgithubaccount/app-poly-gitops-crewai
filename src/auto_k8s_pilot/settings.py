@@ -48,7 +48,9 @@ class Settings(BaseSettings):
 
     # OpenTelemetry
     OTEL_SERVICE_NAME: str = "auto-k8s-pilot"
-    OTEL_EXPORTER_OTLP_ENDPOINT: str = "http://localhost:4318"
+    OTEL_EXPORTER_OTLP_ENDPOINT: str = ""
+    OTEL_TRACES_EXPORTER: str = "none"
+    OTEL_SDK_DISABLED: bool = False
     ENVIRONMENT: str = "development"
     APP_VERSION: str = version("auto-k8s-pilot")
 
