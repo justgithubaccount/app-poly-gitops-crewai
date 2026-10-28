@@ -1,4 +1,4 @@
-from typing import Literal, Optional, Type
+from typing import Any, Literal, Optional, Type
 
 import requests
 from crewai.tools import BaseTool
@@ -21,7 +21,7 @@ class CloudflareDNSTool(BaseTool):
     description: str = "Cloudflare DNS API wrapper (list/get). Upsert requires ALLOW_MUTATING=true."
     args_schema: Type[BaseModel] = CFInput
 
-    def _base(self):
+    def _base(self) -> tuple[Optional[dict[str, str]], Optional[str], Optional[str]]:
         settings = Settings()
         token = settings.CLOUDFLARE_API_TOKEN
         zone = settings.CLOUDFLARE_ZONE_ID
@@ -43,6 +43,8 @@ class CloudflareDNSTool(BaseTool):
         headers, zone, err = self._base()
         if err:
             return err
+        if headers is None or zone is None:
+            return "ERROR: Cloudflare API configuration is incomplete"
         base = f"https://api.cloudflare.com/client/v4/zones/{zone}/dns_records"
 
         try:
@@ -84,7 +86,7 @@ class CloudflareDNSTool(BaseTool):
                 )
                 r.raise_for_status()
                 rs = r.json().get("result", [])
-                payload = {"type": type, "name": name, "content": content}
+                payload: dict[str, Any] = {"type": type, "name": name, "content": content}
                 if proxied is not None:
                     payload["proxied"] = proxied
                 if ttl:

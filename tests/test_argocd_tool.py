@@ -13,8 +13,10 @@ class Resp:
 def test_list_apps(monkeypatch):
     os.environ["ARGOCD_BASE_URL"] = "https://argocd.example.com"
     os.environ["ARGOCD_API_TOKEN"] = "xxx"
+    observed = {}
 
     def fake_get(url, headers, timeout, verify):
+        observed["verify"] = verify
         return Resp({"items": [{"metadata": {"name": "app-a"}}, {"metadata": {"name": "app-b"}}]})
 
     import requests
@@ -23,3 +25,4 @@ def test_list_apps(monkeypatch):
     tool = ArgoCDTool()
     out = tool._run(op="list_apps")
     assert "app-a" in out and "app-b" in out
+    assert observed["verify"] is True

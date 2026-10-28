@@ -1,10 +1,13 @@
+from importlib.metadata import version
 from pathlib import Path
 from typing import Optional
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
+
     # Core
     DEFAULT_NAMESPACE: str = "default"
     ALLOW_MUTATING: bool = False
@@ -14,6 +17,7 @@ class Settings(BaseSettings):
     # ArgoCD
     ARGOCD_BASE_URL: Optional[str] = None
     ARGOCD_API_TOKEN: Optional[str] = None
+    ARGOCD_VERIFY_SSL: bool = True
 
     # Loki
     LOKI_URL: str = "http://loki:3100"
@@ -46,7 +50,7 @@ class Settings(BaseSettings):
     OTEL_SERVICE_NAME: str = "auto-k8s-pilot"
     OTEL_EXPORTER_OTLP_ENDPOINT: str = "http://localhost:4318"
     ENVIRONMENT: str = "development"
-    APP_VERSION: str = "0.1.1"
+    APP_VERSION: str = version("auto-k8s-pilot")
 
     # Kubernetes metadata (set by downward API in K8s)
     K8S_POD_NAME: str = ""
@@ -64,11 +68,6 @@ class Settings(BaseSettings):
 
     # Flow
     DEFAULT_FLOW: str = "k8s-healthcheck"
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
-
 
 # Singleton
 SETTINGS = Settings()

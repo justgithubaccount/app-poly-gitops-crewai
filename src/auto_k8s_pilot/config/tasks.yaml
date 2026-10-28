@@ -97,8 +97,6 @@ k8s_top_nodes:
   expected_output: >
     Exact stdout from kubectl top nodes.
   agent: k8s_operator
-  inputs:
-    namespace: all
 
 k8s_top_pods_ns_default:
   description: >
@@ -173,12 +171,16 @@ mcp_k8s_env_check:
 # --- Incident issue auto-file (GitHub) ----------------------------------
 incident_create_issue_if_needed:
   description: >
-    If previous steps (Loki/Argo/K8s) indicate problems (e.g., Matches>0 with critical errors,
-    Health!=Healthy, Sync!=Synced, CrashLoopBackOff), then call github_create_issue to open an issue in repo "justgithubaccount/app-release".
+    If ALLOW_MUTATING=true and previous steps (Loki/Argo/K8s) indicate problems
+    (e.g., Matches>0 with critical errors, Health!=Healthy, Sync!=Synced,
+    CrashLoopBackOff), then call github_create_issue to open an issue in repo
+    "justgithubaccount/app-release". When mutations are disabled, return the
+    tool's safety error instead of attempting issue creation.
     Title format: "[auto] Incident detected: <short reason>".
     Body must include: last 10 error lines from Loki (if any), Argo app status summary, kubectl pod state snippet.
     If no problems detected, output "No incident filed".
   expected_output: >
-    "Created issue #<n> in justgithubaccount/app-release" or "No incident filed" or tool ERROR.
+    "Created issue #<n> in justgithubaccount/app-release", "No incident filed",
+    or the mutation safety ERROR.
   agent: incident_triager
 

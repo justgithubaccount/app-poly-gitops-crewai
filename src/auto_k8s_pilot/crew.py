@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List
+from typing import Any, Dict, List
 
 from crewai import Agent, Crew, Process, Task
 from crewai.agents.agent_builder.base_agent import BaseAgent
@@ -24,6 +24,8 @@ class AutoK8sPilot:
 
     agents: List[BaseAgent]
     tasks: List[Task]
+    agents_config: Dict[str, Dict[str, Any]]
+    tasks_config: Dict[str, Dict[str, Any]]
 
     @agent
     def reporting_analyst(self) -> Agent:

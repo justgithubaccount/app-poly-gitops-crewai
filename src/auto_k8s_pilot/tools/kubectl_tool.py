@@ -114,7 +114,8 @@ class KubectlTool(BaseTool):
                 cmd += [name]
             if selector and kind == "pods":
                 cmd += ["-l", selector]
-            cmd += ns_flag
+            if kind == "pods":
+                cmd += ns_flag
         elif action == "rollout_restart":
             if kind not in ("deploy", "deployment", "statefulset", "daemonset"):
                 return "ERROR: rollout_restart supports deploy/statefulset/daemonset"
