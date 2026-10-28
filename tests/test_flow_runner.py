@@ -1,10 +1,33 @@
 """Tests for FlowRunner."""
 
+import types
+
+import litellm
 import pytest
+import yaml
 
 from auto_k8s_pilot.crew import AutoK8sPilot
 from auto_k8s_pilot.flow_runner import FlowRunner
 from auto_k8s_pilot.settings import CONFIG_DIR
+
+
+def write_flow_config(config_dir, task_id="k8s_pods_overview"):
+    """Write the smallest real FlowRunner configuration for one task."""
+    layers_dir = config_dir / "layers"
+    layers_dir.mkdir(parents=True)
+    (layers_dir / "flow-test.yaml").write_text(
+        yaml.safe_dump({"steps": [{"run": task_id}]}),
+        encoding="utf-8",
+    )
+    (layers_dir / "behavior.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "agents": [{"id": "k8s_operator", "profile": "k8s_operator"}],
+                "tasks": [{"id": task_id, "agent": "k8s_operator"}],
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 @pytest.fixture
@@ -137,3 +160,59 @@ def test_extract_metadata_with_incident(flow_runner):
 
     metadata = flow_runner._extract_metadata(results)
     assert metadata.get("incident_created") is True
+
+
+def test_run_flow_executes_real_crewai_task(monkeypatch, tmp_path):
+    """Catch regressions that call a removed CrewAI Task execution method."""
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    def fake_completion(*args, **kwargs):
+        return types.SimpleNamespace(
+            choices=[
+                types.SimpleNamespace(
+                    message=types.SimpleNamespace(content="pod-1 1/1 Running 2d node-a")
+                )
+            ]
+        )
+
+    monkeypatch.setattr(litellm, "completion", fake_completion)
+    write_flow_config(tmp_path)
+
+    runner = FlowRunner(AutoK8sPilot(), tmp_path)
+    real_task_factory = runner.tasks_map["k8s_pods_overview"]
+
+    def task_with_temporary_output():
+        task = real_task_factory()
+        task.output_file = str(tmp_path / "pods_overview.md")
+        return task
+
+    runner.tasks_map["k8s_pods_overview"] = task_with_temporary_output
+    result = runner.run_flow("test", {"namespace": "default"})
+
+    assert result["final_answer"] == "pod-1 1/1 Running 2d node-a"
+    assert result["steps"] == [
+        {
+            "agent": "k8s_operator",
+            "task": "k8s_pods_overview",
+            "output": "pod-1 1/1 Running 2d node-a",
+            "duration_ms": result["steps"][0]["duration_ms"],
+        }
+    ]
+
+
+def test_run_flow_does_not_mask_task_execution_failure(tmp_path):
+    """A failed task must fail the request instead of returning a false success."""
+
+    class FailingTask:
+        def execute_sync(self, context=None):
+            raise ValueError("LLM unavailable")
+
+    write_flow_config(tmp_path)
+    runner = FlowRunner(AutoK8sPilot(), tmp_path)
+    runner.tasks_map["k8s_pods_overview"] = lambda: FailingTask()
+
+    with pytest.raises(
+        RuntimeError,
+        match="Flow 'test' failed at task 'k8s_pods_overview': LLM unavailable",
+    ):
+        runner.run_flow("test", {"namespace": "default"})

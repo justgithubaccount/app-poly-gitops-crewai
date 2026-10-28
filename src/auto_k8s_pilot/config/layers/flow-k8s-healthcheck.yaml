@@ -5,13 +5,4 @@ steps:
   - run: explain_pods
   - run: cluster_summary
   - run: k8s_events_recent
-  - run: argocd_list_apps
-  - run: argocd_app_status_chat_api
-  - run: loki_recent_errors_chat_api
-  - run: loki_http_activity_chat_api
-  - run: dns_check_records
-  - run: dns_get_record_api
-  - run: llm_gateway_health
-  - run: mcp_k8s_env_check
-  - run: incident_create_issue_if_needed
 
