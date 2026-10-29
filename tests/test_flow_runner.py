@@ -214,14 +214,9 @@ def test_k8s_health_report_uses_actual_scope_and_preserves_completed_jobs(tmp_pa
                 "crewai-healthcheck 0/1 Completed 0 1m 10.0.0.3 node-a <none> <none>"
             )
 
-    class StaticTask:
+    class UnexpectedLLMTask:
         def execute_sync(self, context=None):
-            return types.SimpleNamespace(
-                raw=(
-                    "Scope: namespace crewai-system\n"
-                    "One running pod and one successfully completed healthcheck Job."
-                )
-            )
+            raise AssertionError("cluster health summary must not call an LLM")
 
     layers_dir = tmp_path / "layers"
     layers_dir.mkdir(parents=True)
@@ -252,7 +247,7 @@ def test_k8s_health_report_uses_actual_scope_and_preserves_completed_jobs(tmp_pa
 
     kubectl = RecordingKubectl()
     runner = FlowRunner(AutoK8sPilot(), tmp_path, kubectl_tool=kubectl)
-    runner.tasks_map["cluster_summary"] = lambda: StaticTask()
+    runner.tasks_map["cluster_summary"] = lambda: UnexpectedLLMTask()
 
     result = runner.run_flow("test", {"namespace": "crewai-system"})
 
@@ -264,37 +259,27 @@ def test_k8s_health_report_uses_actual_scope_and_preserves_completed_jobs(tmp_pa
     assert "Completed: 1" in explanation
     assert "explicit failures: 0" in explanation
     assert "failing" not in explanation.lower()
+    final_answer = result["final_answer"]
+    assert final_answer.startswith("Scope: namespace crewai-system")
+    assert "explicit failures: 0" in final_answer
+    assert "component presence or absence is not inferred" in final_answer
+    assert "not deployed" not in final_answer.lower()
+    assert "absent" not in final_answer.lower()
 
 
-@pytest.mark.parametrize(
-    "invalid_summary",
-    [
-        (
-            "Scope: namespace crewai-system\n"
-            "There is no ArgoCD, ingress, Vector, Loki, Grafana, or OpenTelemetry."
-        ),
-        "Scope: namespace crewai-system\n1 pod failing.",
-        "Cluster-wide summary\nAll workloads are healthy.",
-    ],
-)
-def test_k8s_health_report_rejects_unsupported_llm_claims(
-    flow_runner, invalid_summary
-):
-    """A plausible but unsupported LLM narrative must never produce success."""
-    evidence = {
-        "k8s_pods_overview": "job-1 0/1 Completed 0 1m 10.0.0.3 node-a",
-        "explain_pods": (
-            "Scope: namespace crewai-system\n"
-            "Completed: 1; explicit failures: 0."
-        ),
-    }
+def test_pod_summary_counts_only_explicit_failure_phases(flow_runner):
+    """Natural-language failure counts cannot override observed pod phases."""
+    raw = (
+        "api-1 1/1 Running 0 2m 10.0.0.2 node-a <none> <none>\n"
+        "job-1 0/1 Completed 0 1m 10.0.0.3 node-a <none> <none>\n"
+        "worker-1 0/1 CrashLoopBackOff 4 1m 10.0.0.4 node-a <none> <none>"
+    )
 
-    with pytest.raises(ValueError):
-        flow_runner._validate_cluster_summary(
-            invalid_summary,
-            "Scope: namespace crewai-system",
-            evidence,
-        )
+    summary = flow_runner._summarize_pods(raw, "Scope: namespace app")
+
+    assert "Completed: 1" in summary
+    assert "CrashLoopBackOff: 1" in summary
+    assert "explicit failures: 1" in summary
 
 
 def test_run_flow_does_not_mask_task_execution_failure(tmp_path):

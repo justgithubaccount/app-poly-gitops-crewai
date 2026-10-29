@@ -1,6 +1,5 @@
 """FlowRunner - executes flow-*.yaml step by step using CrewAI tasks."""
 
-import re
 import time
 from collections import Counter
 from pathlib import Path
@@ -164,13 +163,6 @@ class FlowRunner:
                     )
                     task_output = task.execute_sync(context=task_context)
                     output = task_output.raw
-                    if task_id == "cluster_summary":
-                        evidence_scope = self._scope_label(inputs)
-                        self._validate_cluster_summary(
-                            output,
-                            evidence_scope,
-                            context,
-                        )
                 step_log.bind(
                     event="step_complete", duration_ms=int((time.time() - start) * 1000)
                 ).info("Task completed")
@@ -252,6 +244,9 @@ class FlowRunner:
             raw = context.get("k8s_pods_overview", "")
             actual_scope = context.get("k8s_pods_overview_scope", scope)
             return self._summarize_pods(raw, actual_scope), actual_scope
+        if task_id == "cluster_summary":
+            actual_scope = context.get("k8s_pods_overview_scope", scope)
+            return self._build_evidence_summary(context, actual_scope), actual_scope
         return None
 
     @staticmethod
@@ -319,69 +314,25 @@ class FlowRunner:
         )
 
     @staticmethod
-    def _validate_cluster_summary(
-        output: str,
-        scope: str,
-        evidence: Dict[str, str],
-    ) -> None:
-        """Reject a plausible-looking LLM summary that exceeds its evidence."""
-        first_line = next(
-            (line.strip() for line in output.splitlines() if line.strip()), ""
-        )
-        if first_line != scope:
-            raise ValueError(f"cluster summary must start with '{scope}'")
+    def _build_evidence_summary(context: Dict[str, str], scope: str) -> str:
+        """Build the health report only from recorded evidence, without an LLM."""
+        pod_summary = context.get("explain_pods", f"{scope}\nNo pod evidence available.")
+        sections = [pod_summary]
 
-        output_lower = output.lower()
-        evidence_lower = "\n".join(
-            value for key, value in evidence.items() if not key.endswith("_scope")
-        ).lower()
-
-        if scope != "Scope: all namespaces":
-            unsupported_absence = (
-                "not deployed",
-                "not installed",
-                "there is no",
-                "no indication of",
-                "no indications of",
-            )
-            if any(phrase in output_lower for phrase in unsupported_absence):
-                raise ValueError(
-                    "namespace-scoped evidence cannot prove cluster-wide absence"
-                )
-
-        component_terms = (
-            "argocd",
-            "argo cd",
-            "ingress",
-            "vector",
-            "loki",
-            "grafana",
-            "opentelemetry",
-            "cni",
+        evidence_sources = (
+            ("Node metrics", "k8s_top_nodes"),
+            ("Pod metrics", "k8s_top_pods_ns_default"),
         )
-        unsupported = [
-            term
-            for term in component_terms
-            if term in output_lower and term not in evidence_lower
-        ]
-        if unsupported:
-            raise ValueError(
-                "cluster summary mentions components absent from evidence: "
-                + ", ".join(unsupported)
-            )
+        for title, key in evidence_sources:
+            evidence = context.get(key, "").strip()
+            if evidence:
+                sections.append(f"{title} (verbatim):\n{evidence}")
 
-        pod_evidence = evidence.get("k8s_pods_overview", "")
-        explicit_failure = re.search(
-            r"\b(?:Failed|Error|CrashLoopBackOff|ImagePullBackOff|ErrImagePull)\b",
-            pod_evidence,
+        sections.append(
+            "Architecture note: component presence or absence is not inferred "
+            "from this bounded health snapshot."
         )
-        false_failure_claim = re.search(
-            r"(?:failing\s*:\s*[1-9]|\b[1-9][0-9]*\s+(?:pods?\s+)?failing\b)",
-            output,
-            flags=re.IGNORECASE,
-        )
-        if false_failure_claim and not explicit_failure:
-            raise ValueError("cluster summary invents failing pods")
+        return "\n\n".join(sections)
 
     def _load_behavior(self) -> dict:
         """Load behavior.yaml."""
