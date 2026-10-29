@@ -1,20 +1,29 @@
 """FlowRunner - executes flow-*.yaml step by step using CrewAI tasks."""
 
+import re
 import time
+from collections import Counter
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
 from auto_k8s_pilot.observability import enrich_context
+from auto_k8s_pilot.tools.kubectl_tool import KubectlTool
 
 
 class FlowRunner:
     """Executes flow-*.yaml step by step using CrewAI tasks."""
 
-    def __init__(self, crew_instance: Any, config_dir: Path):
+    def __init__(
+        self,
+        crew_instance: Any,
+        config_dir: Path,
+        kubectl_tool: Optional[KubectlTool] = None,
+    ):
         self.crew = crew_instance
         self.config_dir = config_dir
+        self.kubectl_tool = kubectl_tool or KubectlTool()
         self.tasks_map = self._build_tasks_map()
 
     def _build_tasks_map(self) -> Dict[str, Any]:
@@ -135,17 +144,33 @@ class FlowRunner:
             )
             step_log.info("Executing task")
 
-            # Execute the task through CrewAI's supported synchronous API.
+            # Execute evidence collection and phase counting deterministically.
+            # LLMs are useful for narrative synthesis, but they must not choose
+            # the kubectl scope or reinterpret Kubernetes phases.
             start = time.time()
             try:
-                task = task_method()  # Get CrewAI Task object
-                task_context = yaml.safe_dump(
-                    {**inputs, **context},
-                    allow_unicode=True,
-                    sort_keys=False,
+                deterministic = self._execute_deterministic_task(
+                    task_id, inputs, context
                 )
-                task_output = task.execute_sync(context=task_context)
-                output = task_output.raw
+                evidence_scope = None
+                if deterministic is not None:
+                    output, evidence_scope = deterministic
+                else:
+                    task = task_method()  # Get CrewAI Task object
+                    task_context = yaml.safe_dump(
+                        {**inputs, **context},
+                        allow_unicode=True,
+                        sort_keys=False,
+                    )
+                    task_output = task.execute_sync(context=task_context)
+                    output = task_output.raw
+                    if task_id == "cluster_summary":
+                        evidence_scope = self._scope_label(inputs)
+                        self._validate_cluster_summary(
+                            output,
+                            evidence_scope,
+                            context,
+                        )
                 step_log.bind(
                     event="step_complete", duration_ms=int((time.time() - start) * 1000)
                 ).info("Task completed")
@@ -168,6 +193,8 @@ class FlowRunner:
 
             # Add to context for next steps
             context[task_id] = output
+            if evidence_scope:
+                context[f"{task_id}_scope"] = evidence_scope
 
         total_duration_ms = int((time.time() - total_start) * 1000)
 
@@ -187,6 +214,174 @@ class FlowRunner:
             "steps": results,
             "metadata": metadata,
         }
+
+    def _execute_deterministic_task(
+        self,
+        task_id: str,
+        inputs: dict,
+        context: Dict[str, str],
+    ) -> Optional[Tuple[str, str]]:
+        """Run raw Kubernetes reads and pod phase accounting without an LLM."""
+        namespace = self._namespace_value(inputs)
+        scope = self._scope_label(inputs)
+
+        if task_id == "k8s_top_nodes":
+            return self.kubectl_tool._run(action="top", kind="nodes"), "all nodes"
+        if task_id == "k8s_top_pods_ns_default":
+            return (
+                self.kubectl_tool._run(
+                    action="top", kind="pods", namespace=namespace
+                ),
+                scope,
+            )
+        if task_id == "k8s_pods_overview":
+            return (
+                self.kubectl_tool._run(
+                    action="get", kind="pods", namespace=namespace
+                ),
+                scope,
+            )
+        if task_id == "k8s_events_recent":
+            return (
+                self.kubectl_tool._run(
+                    action="get", kind="events", namespace=namespace
+                ),
+                scope,
+            )
+        if task_id == "explain_pods":
+            raw = context.get("k8s_pods_overview", "")
+            actual_scope = context.get("k8s_pods_overview_scope", scope)
+            return self._summarize_pods(raw, actual_scope), actual_scope
+        return None
+
+    @staticmethod
+    def _namespace_value(inputs: dict) -> str:
+        value = str(inputs.get("namespace") or "default").strip()
+        return "all" if value.lower() in {"all", "*"} else value
+
+    @classmethod
+    def _scope_label(cls, inputs: dict) -> str:
+        namespace = cls._namespace_value(inputs)
+        if namespace == "all":
+            return "Scope: all namespaces"
+        return f"Scope: namespace {namespace}"
+
+    @staticmethod
+    def _summarize_pods(raw: str, scope: str) -> str:
+        """Summarize kubectl's table while preserving exact phase semantics."""
+        if raw.startswith("ERROR:"):
+            return f"{scope}\nPod evidence unavailable: {raw}"
+
+        lines = [line for line in raw.splitlines() if line.strip()]
+        all_namespaces = scope == "Scope: all namespaces"
+        status_index = 3 if all_namespaces else 2
+        name_index = 1 if all_namespaces else 0
+        phases: Counter[str] = Counter()
+        names_by_phase: Dict[str, List[str]] = {}
+
+        for line in lines:
+            fields = line.split()
+            if len(fields) <= status_index:
+                continue
+            phase = fields[status_index]
+            name = fields[name_index]
+            phases[phase] += 1
+            names_by_phase.setdefault(phase, []).append(name)
+
+        if not phases:
+            return f"{scope}\nNo pods were observed in the supplied snapshot."
+
+        failure_states = {
+            "Failed",
+            "Error",
+            "CrashLoopBackOff",
+            "ImagePullBackOff",
+            "ErrImagePull",
+        }
+        failing = sum(count for phase, count in phases.items() if phase in failure_states)
+        phase_counts = ", ".join(
+            f"{phase}: {count}" for phase, count in sorted(phases.items())
+        )
+        details = [
+            f"- {phase}: {', '.join(names)}"
+            for phase, names in sorted(names_by_phase.items())
+        ]
+        return "\n".join(
+            [
+                scope,
+                (
+                    f"Observed pods: {sum(phases.values())}; {phase_counts}; "
+                    f"explicit failures: {failing}."
+                ),
+                "Completed and Succeeded are successful terminal Job states.",
+                *details,
+            ]
+        )
+
+    @staticmethod
+    def _validate_cluster_summary(
+        output: str,
+        scope: str,
+        evidence: Dict[str, str],
+    ) -> None:
+        """Reject a plausible-looking LLM summary that exceeds its evidence."""
+        first_line = next(
+            (line.strip() for line in output.splitlines() if line.strip()), ""
+        )
+        if first_line != scope:
+            raise ValueError(f"cluster summary must start with '{scope}'")
+
+        output_lower = output.lower()
+        evidence_lower = "\n".join(
+            value for key, value in evidence.items() if not key.endswith("_scope")
+        ).lower()
+
+        if scope != "Scope: all namespaces":
+            unsupported_absence = (
+                "not deployed",
+                "not installed",
+                "there is no",
+                "no indication of",
+                "no indications of",
+            )
+            if any(phrase in output_lower for phrase in unsupported_absence):
+                raise ValueError(
+                    "namespace-scoped evidence cannot prove cluster-wide absence"
+                )
+
+        component_terms = (
+            "argocd",
+            "argo cd",
+            "ingress",
+            "vector",
+            "loki",
+            "grafana",
+            "opentelemetry",
+            "cni",
+        )
+        unsupported = [
+            term
+            for term in component_terms
+            if term in output_lower and term not in evidence_lower
+        ]
+        if unsupported:
+            raise ValueError(
+                "cluster summary mentions components absent from evidence: "
+                + ", ".join(unsupported)
+            )
+
+        pod_evidence = evidence.get("k8s_pods_overview", "")
+        explicit_failure = re.search(
+            r"\b(?:Failed|Error|CrashLoopBackOff|ImagePullBackOff|ErrImagePull)\b",
+            pod_evidence,
+        )
+        false_failure_claim = re.search(
+            r"(?:failing\s*:\s*[1-9]|\b[1-9][0-9]*\s+(?:pods?\s+)?failing\b)",
+            output,
+            flags=re.IGNORECASE,
+        )
+        if false_failure_claim and not explicit_failure:
+            raise ValueError("cluster summary invents failing pods")
 
     def _load_behavior(self) -> dict:
         """Load behavior.yaml."""

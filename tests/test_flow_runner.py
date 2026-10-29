@@ -176,28 +176,125 @@ def test_run_flow_executes_real_crewai_task(monkeypatch, tmp_path):
         )
 
     monkeypatch.setattr(litellm, "completion", fake_completion)
-    write_flow_config(tmp_path)
+    write_flow_config(tmp_path, task_id="llm_gateway_health")
 
     runner = FlowRunner(AutoK8sPilot(), tmp_path)
-    real_task_factory = runner.tasks_map["k8s_pods_overview"]
+    real_task_factory = runner.tasks_map["llm_gateway_health"]
 
     def task_with_temporary_output():
         task = real_task_factory()
         task.output_file = str(tmp_path / "pods_overview.md")
         return task
 
-    runner.tasks_map["k8s_pods_overview"] = task_with_temporary_output
+    runner.tasks_map["llm_gateway_health"] = task_with_temporary_output
     result = runner.run_flow("test", {"namespace": "default"})
 
     assert result["final_answer"] == "pod-1 1/1 Running 2d node-a"
     assert result["steps"] == [
         {
             "agent": "k8s_operator",
-            "task": "k8s_pods_overview",
+            "task": "llm_gateway_health",
             "output": "pod-1 1/1 Running 2d node-a",
             "duration_ms": result["steps"][0]["duration_ms"],
         }
     ]
+
+
+def test_k8s_health_report_uses_actual_scope_and_preserves_completed_jobs(tmp_path):
+    """A completed Job is successful and kubectl receives the requested namespace."""
+
+    class RecordingKubectl:
+        def __init__(self):
+            self.calls = []
+
+        def _run(self, **kwargs):
+            self.calls.append(kwargs)
+            return (
+                "crewai-api 1/1 Running 0 2m 10.0.0.2 node-a <none> <none>\n"
+                "crewai-healthcheck 0/1 Completed 0 1m 10.0.0.3 node-a <none> <none>"
+            )
+
+    class StaticTask:
+        def execute_sync(self, context=None):
+            return types.SimpleNamespace(
+                raw=(
+                    "Scope: namespace crewai-system\n"
+                    "One running pod and one successfully completed healthcheck Job."
+                )
+            )
+
+    layers_dir = tmp_path / "layers"
+    layers_dir.mkdir(parents=True)
+    (layers_dir / "flow-test.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "steps": [
+                    {"run": "k8s_pods_overview"},
+                    {"run": "explain_pods"},
+                    {"run": "cluster_summary"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    (layers_dir / "behavior.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "tasks": [
+                    {"id": "k8s_pods_overview", "agent": "k8s_operator"},
+                    {"id": "explain_pods", "agent": "reporting_analyst"},
+                    {"id": "cluster_summary", "agent": "infra_architect"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    kubectl = RecordingKubectl()
+    runner = FlowRunner(AutoK8sPilot(), tmp_path, kubectl_tool=kubectl)
+    runner.tasks_map["cluster_summary"] = lambda: StaticTask()
+
+    result = runner.run_flow("test", {"namespace": "crewai-system"})
+
+    assert kubectl.calls == [
+        {"action": "get", "kind": "pods", "namespace": "crewai-system"}
+    ]
+    explanation = result["steps"][1]["output"]
+    assert explanation.startswith("Scope: namespace crewai-system")
+    assert "Completed: 1" in explanation
+    assert "explicit failures: 0" in explanation
+    assert "failing" not in explanation.lower()
+
+
+@pytest.mark.parametrize(
+    "invalid_summary",
+    [
+        (
+            "Scope: namespace crewai-system\n"
+            "There is no ArgoCD, ingress, Vector, Loki, Grafana, or OpenTelemetry."
+        ),
+        "Scope: namespace crewai-system\n1 pod failing.",
+        "Cluster-wide summary\nAll workloads are healthy.",
+    ],
+)
+def test_k8s_health_report_rejects_unsupported_llm_claims(
+    flow_runner, invalid_summary
+):
+    """A plausible but unsupported LLM narrative must never produce success."""
+    evidence = {
+        "k8s_pods_overview": "job-1 0/1 Completed 0 1m 10.0.0.3 node-a",
+        "explain_pods": (
+            "Scope: namespace crewai-system\n"
+            "Completed: 1; explicit failures: 0."
+        ),
+    }
+
+    with pytest.raises(ValueError):
+        flow_runner._validate_cluster_summary(
+            invalid_summary,
+            "Scope: namespace crewai-system",
+            evidence,
+        )
 
 
 def test_run_flow_does_not_mask_task_execution_failure(tmp_path):
@@ -207,12 +304,12 @@ def test_run_flow_does_not_mask_task_execution_failure(tmp_path):
         def execute_sync(self, context=None):
             raise ValueError("LLM unavailable")
 
-    write_flow_config(tmp_path)
+    write_flow_config(tmp_path, task_id="llm_gateway_health")
     runner = FlowRunner(AutoK8sPilot(), tmp_path)
-    runner.tasks_map["k8s_pods_overview"] = lambda: FailingTask()
+    runner.tasks_map["llm_gateway_health"] = lambda: FailingTask()
 
     with pytest.raises(
         RuntimeError,
-        match="Flow 'test' failed at task 'k8s_pods_overview': LLM unavailable",
+        match="Flow 'test' failed at task 'llm_gateway_health': LLM unavailable",
     ):
         runner.run_flow("test", {"namespace": "default"})
