@@ -176,28 +176,126 @@ def test_run_flow_executes_real_crewai_task(monkeypatch, tmp_path):
         )
 
     monkeypatch.setattr(litellm, "completion", fake_completion)
-    write_flow_config(tmp_path)
+    write_flow_config(tmp_path, task_id="llm_gateway_health")
 
     runner = FlowRunner(AutoK8sPilot(), tmp_path)
-    real_task_factory = runner.tasks_map["k8s_pods_overview"]
+    real_task_factory = runner.tasks_map["llm_gateway_health"]
 
     def task_with_temporary_output():
         task = real_task_factory()
         task.output_file = str(tmp_path / "pods_overview.md")
         return task
 
-    runner.tasks_map["k8s_pods_overview"] = task_with_temporary_output
+    runner.tasks_map["llm_gateway_health"] = task_with_temporary_output
     result = runner.run_flow("test", {"namespace": "default"})
 
     assert result["final_answer"] == "pod-1 1/1 Running 2d node-a"
     assert result["steps"] == [
         {
             "agent": "k8s_operator",
-            "task": "k8s_pods_overview",
+            "task": "llm_gateway_health",
             "output": "pod-1 1/1 Running 2d node-a",
             "duration_ms": result["steps"][0]["duration_ms"],
         }
     ]
+
+
+def test_k8s_health_report_uses_actual_scope_and_preserves_completed_jobs(tmp_path):
+    """A completed Job is successful and kubectl receives the requested namespace."""
+
+    class RecordingKubectl:
+        def __init__(self):
+            self.calls = []
+
+        def _run(self, **kwargs):
+            self.calls.append(kwargs)
+            return (
+                "crewai-api 1/1 Running 0 2m 10.0.0.2 node-a <none> <none>\n"
+                "crewai-healthcheck 0/1 Completed 0 1m 10.0.0.3 node-a <none> <none>"
+            )
+
+    class UnexpectedLLMTask:
+        def execute_sync(self, context=None):
+            raise AssertionError("cluster health summary must not call an LLM")
+
+    layers_dir = tmp_path / "layers"
+    layers_dir.mkdir(parents=True)
+    (layers_dir / "flow-test.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "steps": [
+                    {"run": "k8s_pods_overview"},
+                    {"run": "explain_pods"},
+                    {"run": "cluster_summary"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    (layers_dir / "behavior.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "tasks": [
+                    {"id": "k8s_pods_overview", "agent": "k8s_operator"},
+                    {"id": "explain_pods", "agent": "reporting_analyst"},
+                    {"id": "cluster_summary", "agent": "infra_architect"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    kubectl = RecordingKubectl()
+    runner = FlowRunner(AutoK8sPilot(), tmp_path, kubectl_tool=kubectl)
+    runner.tasks_map["cluster_summary"] = lambda: UnexpectedLLMTask()
+
+    result = runner.run_flow("test", {"namespace": "crewai-system"})
+
+    assert kubectl.calls == [
+        {"action": "get", "kind": "pods", "namespace": "crewai-system"}
+    ]
+    explanation = result["steps"][1]["output"]
+    assert explanation.startswith("Scope: namespace crewai-system")
+    assert "Completed: 1" in explanation
+    assert "explicit failures: 0" in explanation
+    assert "failing" not in explanation.lower()
+    final_answer = result["final_answer"]
+    assert final_answer.startswith("Scope: namespace crewai-system")
+    assert "explicit failures: 0" in final_answer
+    assert "component presence or absence is not inferred" in final_answer
+    assert "not deployed" not in final_answer.lower()
+    assert "absent" not in final_answer.lower()
+
+
+def test_pod_summary_counts_only_explicit_failure_phases(flow_runner):
+    """Natural-language failure counts cannot override observed pod phases."""
+    raw = (
+        "api-1 1/1 Running 0 2m 10.0.0.2 node-a <none> <none>\n"
+        "job-1 0/1 Completed 0 1m 10.0.0.3 node-a <none> <none>\n"
+        "worker-1 0/1 CrashLoopBackOff 4 1m 10.0.0.4 node-a <none> <none>"
+    )
+
+    summary = flow_runner._summarize_pods(raw, "Scope: namespace app")
+
+    assert "Completed: 1" in summary
+    assert "CrashLoopBackOff: 1" in summary
+    assert "explicit failures: 1" in summary
+
+
+def test_pod_summary_counts_init_and_container_configuration_failures(flow_runner):
+    """kubectl reason variants must not be reported as a healthy snapshot."""
+    raw = (
+        "api-1 0/1 CreateContainerConfigError 0 1m 10.0.0.2 node-a <none> <none>\n"
+        "worker-1 0/1 Init:CrashLoopBackOff 4 1m 10.0.0.3 node-a <none> <none>\n"
+        "job-1 0/1 Completed 0 1m 10.0.0.4 node-a <none> <none>"
+    )
+
+    summary = flow_runner._summarize_pods(raw, "Scope: namespace app")
+
+    assert "CreateContainerConfigError: 1" in summary
+    assert "Init:CrashLoopBackOff: 1" in summary
+    assert "Completed: 1" in summary
+    assert "explicit failures: 2" in summary
 
 
 def test_run_flow_does_not_mask_task_execution_failure(tmp_path):
@@ -207,12 +305,12 @@ def test_run_flow_does_not_mask_task_execution_failure(tmp_path):
         def execute_sync(self, context=None):
             raise ValueError("LLM unavailable")
 
-    write_flow_config(tmp_path)
+    write_flow_config(tmp_path, task_id="llm_gateway_health")
     runner = FlowRunner(AutoK8sPilot(), tmp_path)
-    runner.tasks_map["k8s_pods_overview"] = lambda: FailingTask()
+    runner.tasks_map["llm_gateway_health"] = lambda: FailingTask()
 
     with pytest.raises(
         RuntimeError,
-        match="Flow 'test' failed at task 'k8s_pods_overview': LLM unavailable",
+        match="Flow 'test' failed at task 'llm_gateway_health': LLM unavailable",
     ):
         runner.run_flow("test", {"namespace": "default"})

@@ -94,3 +94,45 @@ def test_run_request_schema(client):
     response = client.post("/run/nonexistent-flow", json=request_data)
     # Should be 404 (flow not found) not 422 (validation error)
     assert response.status_code == 404
+
+
+def test_run_rejects_context_scope_override(client):
+    """Direct API callers cannot change Kubernetes scope through context."""
+    for reserved in ("namespace", "app_name"):
+        response = client.post(
+            "/run/k8s-healthcheck",
+            json={
+                "namespace": "tenant-a",
+                "app_name": "service-a",
+                "context": {reserved: "tenant-b"},
+            },
+        )
+        assert response.status_code == 422
+        assert "must not override" in response.json()["detail"]
+
+
+def test_run_preserves_explicit_scope_with_additional_context(client, monkeypatch):
+    """Supplemental context passes through without changing the selected scope."""
+    from auto_k8s_pilot import api
+
+    captured = {}
+
+    def fake_run(flow_name, inputs):
+        captured.update(inputs)
+        return {"final_answer": "ok", "steps": [], "metadata": {}}
+
+    monkeypatch.setattr(api.flow_runner, "run_flow", fake_run)
+    response = client.post(
+        "/run/k8s-healthcheck",
+        json={
+            "namespace": "tenant-a",
+            "app_name": "service-a",
+            "context": {"note": "read-only check"},
+        },
+    )
+    assert response.status_code == 200
+    assert captured == {
+        "namespace": "tenant-a",
+        "app_name": "service-a",
+        "note": "read-only check",
+    }

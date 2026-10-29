@@ -85,11 +85,18 @@ async def run_flow_endpoint(flow_name: str, request: RunRequest):
     )
     log.info("Flow execution started")
 
+    # Context is supplemental data, never an alternative source for routing scope.
+    if request.context and {"namespace", "app_name"} & request.context.keys():
+        raise HTTPException(
+            status_code=422,
+            detail="context must not override namespace or app_name",
+        )
+
     try:
         inputs = {
+            **(request.context or {}),
             "namespace": request.namespace,
             "app_name": request.app_name or "chat-api",
-            **(request.context or {}),
         }
 
         result = flow_runner.run_flow(flow_name, inputs)

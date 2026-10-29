@@ -112,14 +112,28 @@ def test_tasks_have_required_fields():
 def test_k8s_health_prompts_are_grounded_and_namespace_aware():
     """Health reports must not invent components or ignore the requested namespace."""
     tasks_file = CONFIG_DIR / "tasks.yaml"
+    agents_file = CONFIG_DIR / "agents.yaml"
 
     with open(tasks_file) as f:
         tasks = yaml.safe_load(f)
+    with open(agents_file) as f:
+        agents = yaml.safe_load(f)
 
     summary = tasks["cluster_summary"]["description"]
     assert "Only report components explicitly present" in summary
     assert "not observed in the supplied snapshot" in summary
     assert "Do not infer" in summary
+    assert "first line" in summary
+    assert "namespace-scoped evidence" in summary
+
+    pod_explanation = tasks["explain_pods"]["description"]
+    assert "Completed and Succeeded are successful terminal states" in pod_explanation
+    assert "Failed, Error, CrashLoopBackOff" in pod_explanation
+    assert "requested namespace" in pod_explanation
+
+    architect = agents["infra_architect"]
+    assert architect["temperature"] == 0.0
+    assert "never extrapolates" in architect["backstory"]
 
     top_pods = tasks["k8s_top_pods_ns_default"]["description"]
     assert "namespace from the flow context" in top_pods

@@ -12,21 +12,34 @@ k8s_pods_overview:
 explain_pods:
   description: >
     Take the raw kubectl output from the previous task and explain it in plain language.
-    Summarize how many pods are running, pending, or failing, and which namespaces they belong to.
+    Scope every statement to the requested namespace from the flow context; when the
+    namespace is not "all", never present the result as a cluster-wide inventory.
+    Summarize pod phases exactly as reported. Completed and Succeeded are successful terminal states,
+    not failures. Count a pod as failing only when its observed status is Failed, Error, CrashLoopBackOff,
+    ImagePullBackOff, or another explicit failure state in the raw output. Do not infer a failure from
+    READY=0/1 for a completed Job. Do not assign an application role that is absent from the pod name,
+    labels, or supplied context.
   expected_output: >
-    Human-readable summary (paragraph + bullet points).
+    Namespace-scoped, evidence-grounded summary (paragraph + bullet points) with
+    successful terminal Jobs separated from active and failing pods.
   agent: reporting_analyst
 
 cluster_summary:
   description: >
     Analyze the raw Kubernetes outputs from the previous tasks and provide a
-    high-level summary. Only report components explicitly present in those
+    high-level summary. Begin the first line with the exact evidence scope from
+    the flow context: "Scope: all namespaces" or "Scope: namespace <name>".
+    Treat a non-"all" namespace as namespace-scoped evidence, never as a cluster
+    inventory. Only report components explicitly present in those
     outputs. Do not infer components from a typical Kubernetes architecture,
     from the task instructions, or from examples such as Argo CD, an ingress
     controller, Vector, Loki, Grafana, or OpenTelemetry. For an expected
     category with no direct evidence, say "not observed in the supplied
-    snapshot". Treat tool errors and unavailable metrics as unknown, not as
-    proof that a component is installed, absent, healthy, or unhealthy.
+    snapshot"; never translate that into "not installed", "not deployed", or
+    "absent". Treat tool errors and unavailable metrics as unknown, not as proof
+    that a component is installed, absent, healthy, or unhealthy. Preserve the
+    pod phase semantics from the preceding explanation: Completed and Succeeded
+    Jobs are successful, not failing.
   expected_output: >
     Evidence-grounded explanation of detected components, their observed
     status, and explicit unknowns. No fabricated or assumed components.
