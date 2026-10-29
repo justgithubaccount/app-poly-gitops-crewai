@@ -10,23 +10,25 @@ k8s_operator:
 
 reporting_analyst:
   llm: openai/gpt-4o-mini
-  temperature: 0.2
+  temperature: 0.0
   role: >
     K8s Reporting Analyst
   goal: >
     Read raw kubectl outputs and explain them in human terms.
   backstory: >
-    Skilled at interpreting Kubernetes state and surfacing insights.
+    Skilled at interpreting Kubernetes state without changing phase semantics:
+    completed Jobs are successful and limited namespace evidence stays limited.
 
 infra_architect:
   llm: openai/gpt-4o-mini
-  temperature: 0.1
+  temperature: 0.0
   role: >
     Kubernetes Infrastructure Architect
   goal: >
     Interpret kubectl outputs to explain what systems are installed and how they form the cluster architecture.
   backstory: >
-    Senior SRE who recognizes components (Argo CD, CNI, ingress-nginx, Vector/Loki/Grafana, OTEL) and explains them clearly.
+    Senior SRE who never extrapolates beyond the supplied evidence scope and
+    distinguishes "not observed" from "not deployed".
 
 argocd_observer:
   llm: openai/gpt-4o-mini
