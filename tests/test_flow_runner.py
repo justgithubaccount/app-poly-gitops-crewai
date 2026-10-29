@@ -282,6 +282,22 @@ def test_pod_summary_counts_only_explicit_failure_phases(flow_runner):
     assert "explicit failures: 1" in summary
 
 
+def test_pod_summary_counts_init_and_container_configuration_failures(flow_runner):
+    """kubectl reason variants must not be reported as a healthy snapshot."""
+    raw = (
+        "api-1 0/1 CreateContainerConfigError 0 1m 10.0.0.2 node-a <none> <none>\n"
+        "worker-1 0/1 Init:CrashLoopBackOff 4 1m 10.0.0.3 node-a <none> <none>\n"
+        "job-1 0/1 Completed 0 1m 10.0.0.4 node-a <none> <none>"
+    )
+
+    summary = flow_runner._summarize_pods(raw, "Scope: namespace app")
+
+    assert "CreateContainerConfigError: 1" in summary
+    assert "Init:CrashLoopBackOff: 1" in summary
+    assert "Completed: 1" in summary
+    assert "explicit failures: 2" in summary
+
+
 def test_run_flow_does_not_mask_task_execution_failure(tmp_path):
     """A failed task must fail the request instead of returning a false success."""
 

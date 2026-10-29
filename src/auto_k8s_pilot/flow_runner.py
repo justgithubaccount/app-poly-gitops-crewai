@@ -286,14 +286,11 @@ class FlowRunner:
         if not phases:
             return f"{scope}\nNo pods were observed in the supplied snapshot."
 
-        failure_states = {
-            "Failed",
-            "Error",
-            "CrashLoopBackOff",
-            "ImagePullBackOff",
-            "ErrImagePull",
-        }
-        failing = sum(count for phase, count in phases.items() if phase in failure_states)
+        failing = sum(
+            count
+            for phase, count in phases.items()
+            if FlowRunner._is_explicit_failure_phase(phase)
+        )
         phase_counts = ", ".join(
             f"{phase}: {count}" for phase, count in sorted(phases.items())
         )
@@ -312,6 +309,23 @@ class FlowRunner:
                 *details,
             ]
         )
+
+    @staticmethod
+    def _is_explicit_failure_phase(phase: str) -> bool:
+        """Classify failure reasons emitted in kubectl's human STATUS column."""
+        normalized = phase.casefold()
+        failure_markers = (
+            "error",
+            "failed",
+            "crashloopbackoff",
+            "imagepullbackoff",
+            "errimagepull",
+            "oomkilled",
+            "evicted",
+            "runcontainererror",
+            "deadlineexceeded",
+        )
+        return any(marker in normalized for marker in failure_markers)
 
     @staticmethod
     def _build_evidence_summary(context: Dict[str, str], scope: str) -> str:
