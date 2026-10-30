@@ -1,7 +1,5 @@
 """Tests for FlowRunner."""
 
-import types
-
 from crewai.llms.providers.openai.completion import OpenAICompletion
 import pytest
 import yaml
