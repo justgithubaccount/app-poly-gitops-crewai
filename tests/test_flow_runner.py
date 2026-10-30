@@ -79,6 +79,37 @@ def test_flow_runner_tasks_map_has_core_tasks(flow_runner):
         assert task_id in flow_runner.tasks_map, f"Task '{task_id}' not in tasks_map"
 
 
+def test_tasks_map_is_discovered_from_behavior_config(tmp_path):
+    """Behavior config is the single task registry, not a duplicate Python list."""
+
+    class ConfiguredCrew:
+        def configured_task(self):
+            return object()
+
+    write_flow_config(tmp_path, task_id="configured_task")
+
+    runner = FlowRunner(ConfiguredCrew(), tmp_path)
+
+    assert runner.tasks_map == {"configured_task": runner.crew.configured_task}
+
+
+def test_unknown_flow_task_fails_configuration_validation(tmp_path):
+    """A bad flow must fail at startup instead of returning a partial success."""
+
+    class ConfiguredCrew:
+        def configured_task(self):
+            return object()
+
+    write_flow_config(tmp_path, task_id="configured_task")
+    (tmp_path / "layers" / "flow-broken.yaml").write_text(
+        yaml.safe_dump({"steps": [{"run": "missing_task"}]}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="missing_task"):
+        FlowRunner(ConfiguredCrew(), tmp_path)
+
+
 def test_list_flows(flow_runner):
     """Test list_flows returns available flows."""
     flows = flow_runner.list_flows()

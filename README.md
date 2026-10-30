@@ -28,6 +28,10 @@ Flow responses contain a final answer, completed step records, timing metadata,
 and a trace ID when tracing is active. Execution is synchronous; the API does not
 provide run persistence, progress streaming, or cancellation.
 
+`behavior.yaml` is the routed task registry. On startup the API discovers task
+factories from it and validates every `flow-*.yaml` reference, so an unknown task
+fails configuration instead of producing a partial successful run.
+
 ## Getting started
 
 Requirements: Python 3.10–3.13, [uv](https://docs.astral.sh/uv/), and
@@ -72,7 +76,17 @@ The complete example is in [.env.example](.env.example). Important boundaries:
 - `src/auto_k8s_pilot/crew.py` — CrewAI agents and tasks
 - `src/auto_k8s_pilot/config/` — agent, task, behavior, and flow definitions
 - `src/auto_k8s_pilot/tools/` — Kubernetes and integration tools
+- `output/` — ignored generated task results; never a runtime or test input
 - `tests/` — contract, safety, flow, telemetry, and container tests
+
+The Docker image retains `knowledge/user_preference.txt` and
+`mcp/mcp-argocd.json` as optional CrewAI/MCP scaffolding. Neither is read by the
+current API or deterministic health flow, so their operational status is
+optional/unknown rather than grounds for deleting their compatibility surface.
+`config/layers/crew-infra-cluster.yaml` is likewise descriptive scaffold; the
+active API registry and flow definitions are `behavior.yaml` and `flow-*.yaml`.
+The service uses custom `BaseTool` implementations from CrewAI core; the
+unreferenced `crewai-tools` extra is intentionally not installed.
 
 ## Development
 

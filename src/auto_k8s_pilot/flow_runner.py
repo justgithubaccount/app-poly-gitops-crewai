@@ -24,28 +24,40 @@ class FlowRunner:
         self.config_dir = config_dir
         self.kubectl_tool = kubectl_tool or KubectlTool()
         self.tasks_map = self._build_tasks_map()
+        self._validate_flows()
 
     def _build_tasks_map(self) -> Dict[str, Any]:
-        """Map task_id -> task method from crew (decorated with @task)."""
-        return {
-            "k8s_pods_overview": self.crew.k8s_pods_overview,
-            "explain_pods": self.crew.explain_pods,
-            "cluster_summary": self.crew.cluster_summary,
-            "k8s_top_nodes": self.crew.k8s_top_nodes,
-            "k8s_top_pods_ns_default": self.crew.k8s_top_pods_ns_default,
-            "k8s_events_recent": self.crew.k8s_events_recent,
-            "argocd_list_apps": self.crew.argocd_list_apps,
-            "argocd_app_status_chat_api": self.crew.argocd_app_status_chat_api,
-            "argocd_sync_chat_api": self.crew.argocd_sync_chat_api,
-            "loki_recent_errors_chat_api": self.crew.loki_recent_errors_chat_api,
-            "loki_http_activity_chat_api": self.crew.loki_http_activity_chat_api,
-            "dns_check_records": self.crew.dns_check_records,
-            "dns_get_record_api": self.crew.dns_get_record_api,
-            "dns_upsert_record_api": self.crew.dns_upsert_record_api,
-            "llm_gateway_health": self.crew.llm_gateway_health,
-            "mcp_k8s_env_check": self.crew.mcp_k8s_env_check,
-            "incident_create_issue_if_needed": self.crew.incident_create_issue_if_needed,
-        }
+        """Discover routed task factories from the behavior configuration."""
+        behavior = self._load_behavior()
+        configured_tasks = behavior.get("tasks", [])
+        if not isinstance(configured_tasks, list):
+            raise ValueError("behavior tasks must be a list")
+
+        tasks_map: Dict[str, Any] = {}
+        for configured in configured_tasks:
+            if not isinstance(configured, dict) or not isinstance(configured.get("id"), str):
+                raise ValueError("every behavior task must have a string id")
+            task_id = configured["id"]
+            if task_id in tasks_map:
+                raise ValueError(f"duplicate behavior task: {task_id}")
+            task_factory = getattr(self.crew, task_id, None)
+            if not callable(task_factory):
+                raise ValueError(f"behavior task has no CrewAI factory: {task_id}")
+            tasks_map[task_id] = task_factory
+        return tasks_map
+
+    def _validate_flows(self) -> None:
+        """Fail closed when a discovered flow references an unrouted task."""
+        layers_dir = self.config_dir / "layers"
+        for path in sorted(layers_dir.glob("flow-*.yaml")):
+            with open(path) as stream:
+                flow = yaml.safe_load(stream)
+            if not isinstance(flow, dict) or not isinstance(flow.get("steps"), list):
+                raise ValueError(f"flow config must contain a steps list: {path}")
+            for step in flow["steps"]:
+                task_id = step.get("run") if isinstance(step, dict) else None
+                if not isinstance(task_id, str) or task_id not in self.tasks_map:
+                    raise ValueError(f"flow {path.name} references unknown task: {task_id}")
 
     def list_flows(self) -> List[str]:
         """Return available flow names."""

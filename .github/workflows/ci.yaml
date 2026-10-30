@@ -21,6 +21,8 @@ jobs:
         run: uv sync --locked --dev
       - name: Lint
         run: uv run ruff check src tests
+      - name: Type check
+        run: uv run mypy src --ignore-missing-imports
       - name: Unit tests
         env:
           OTEL_SDK_DISABLED: "true"

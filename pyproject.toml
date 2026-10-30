@@ -5,7 +5,7 @@ description = "auto-k8s-pilot using crewAI"
 authors = [{ name = "Your Name", email = "you@example.com" }]
 requires-python = ">=3.10,<3.14"
 dependencies = [
-    "crewai[tools]>=0.165.1,<1.0.0",
+    "crewai>=0.165.1,<1.0.0",
     # FastAPI
     "fastapi>=0.115.0",
     "uvicorn>=0.32.0",
@@ -21,6 +21,7 @@ dependencies = [
     # Utils
     "pyyaml>=6.0.2",
     "python-dotenv>=1.0.1",
+    "requests>=2.32.0",
 ]
 
 [project.scripts]
