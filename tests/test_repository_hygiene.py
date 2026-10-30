@@ -19,5 +19,5 @@ def test_requests_is_a_direct_runtime_dependency() -> None:
 def test_unused_crewai_tools_extra_is_not_installed() -> None:
     project = (ROOT / "pyproject.toml").read_text()
 
-    assert '"crewai>=' in project
+    assert '"crewai==1.15.33"' in project
     assert "crewai[tools]" not in project
