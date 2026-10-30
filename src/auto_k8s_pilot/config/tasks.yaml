@@ -45,7 +45,7 @@ cluster_summary:
     status, and explicit unknowns. No fabricated or assumed components.
   agent: infra_architect
 
-# --- ArgoCD / GitOps ----------------------------------------------------
+# Argo CD and GitOps
 argocd_list_apps:
   description: >
     Use argocd_tool with op="list_apps".
@@ -64,7 +64,7 @@ argocd_app_status_chat_api:
   inputs:
     app: chat-api
 
-# ⚠️ Mutating (disabled unless ALLOW_MUTATING=true)
+# Mutating; disabled unless ALLOW_MUTATING=true.
 argocd_sync_chat_api:
   description: >
     If and only if ALLOW_MUTATING=true, call argocd_tool with op="app_sync", app="chat-api".
@@ -75,7 +75,7 @@ argocd_sync_chat_api:
   inputs:
     app: chat-api
 
-# --- Loki / Observability ------------------------------------------------
+# Loki and observability
 loki_recent_errors_chat_api:
   description: >
     Use loki_query to fetch last 30 minutes for {app="chat-api"} with "|= \"ERROR\"" and limit=200.
@@ -100,7 +100,7 @@ loki_http_activity_chat_api:
     minutes: 30
     limit: 200
 
-# --- K8s resource pressure ----------------------------------------------
+# Kubernetes resource pressure
 k8s_top_nodes:
   description: >
     Call kubectl_tool exactly once with action="top", kind="nodes" to fetch
@@ -134,7 +134,7 @@ k8s_events_recent:
     namespace: all
     kind: events
 
-# --- Cloudflare --------------------------------------------------------------
+# Cloudflare
 dns_check_records:
   description: >
     Use cloudflare_dns_tool with op="list" to fetch DNS records for the configured zone.
@@ -153,7 +153,7 @@ dns_get_record_api:
   inputs:
     name: "api"
 
-# ⚠️ Mutating guarded by ALLOW_MUTATING
+# Mutating; guarded by ALLOW_MUTATING.
 dns_upsert_record_api:
   description: >
     If ALLOW_MUTATING=true, use cloudflare_dns_tool with op="upsert" to ensure an A/AAAA/CNAME for API endpoint.
@@ -163,7 +163,7 @@ dns_upsert_record_api:
     "UPSERT OK: <id>" or safety ERROR.
   agent: cloudflare_admin
 
-# --- OpenRouter / LLM Gateway ------------------------------------------------
+# OpenRouter and LLM gateway
 llm_gateway_health:
   description: >
     Use openrouter_health_tool with op="models" to verify gateway and list a short preview.
@@ -172,7 +172,7 @@ llm_gateway_health:
     "Models:<count>\nPreview:\n<up to 10 lines>" or explicit ERROR.
   agent: llm_gateway_observer
 
-# --- MCP-K8s bridge ----------------------------------------------------------
+# MCP Kubernetes bridge
 mcp_k8s_env_check:
   description: >
     Validate env for mcp-server-kubernetes connectivity and produce a client config snippet.
@@ -181,7 +181,7 @@ mcp_k8s_env_check:
     "OK: <details>\nSnippet:\n<json/yaml>" or explicit ERROR with missing keys.
   agent: mcp_bridge
 
-# --- Incident issue auto-file (GitHub) ----------------------------------
+# GitHub incident filing
 incident_create_issue_if_needed:
   description: >
     If ALLOW_MUTATING=true and previous steps (Loki/Argo/K8s) indicate problems
