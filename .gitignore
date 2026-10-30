@@ -15,3 +15,6 @@ package-lock.json
 
 # Secrets
 .env
+
+# Generated CrewAI task results. They are runtime evidence, never source input.
+output/
