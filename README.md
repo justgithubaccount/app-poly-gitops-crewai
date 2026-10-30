@@ -63,7 +63,15 @@ The complete example is in [.env.example](.env.example). Important boundaries:
 
 - `DEFAULT_NAMESPACE` and `DEFAULT_FLOW` select the default scope.
 - `ALLOW_MUTATING` defaults to `false`.
-- `OPENAI_API_KEY` is used by CrewAI tasks that call a model.
+- `OPENAI_API_KEY` remains the default credential for CrewAI model tasks.
+- When `OPENROUTER_API_KEY` is explicitly supplied, the same CrewAI agents
+  instead use the **native OpenAI-compatible SDK** with
+  `OPENROUTER_BASE_URL=https://openrouter.ai/api/v1`. Their existing model
+  identifiers are passed to OpenRouter unchanged. No LiteLLM is installed.
+  This is an opt-in runtime choice: the existing Kubernetes Deployment
+  supplies `OPENAI_API_KEY`, so it is not silently rerouted.
+- `OPENROUTER_BASE_URL` alone does not switch the agent provider; the health
+  tool continues to use this URL independently for `/models` and ping.
 - `ARGOCD_BASE_URL`, `LOKI_URL`, Cloudflare, GitHub, OpenRouter, and MCP
   variables configure optional integrations.
 - `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_TRACES_EXPORTER=otlp` enable trace
@@ -86,7 +94,11 @@ optional/unknown rather than grounds for deleting their compatibility surface.
 `config/layers/crew-infra-cluster.yaml` is likewise descriptive scaffold; the
 active API registry and flow definitions are `behavior.yaml` and `flow-*.yaml`.
 The service uses custom `BaseTool` implementations from CrewAI core; the
-unreferenced `crewai-tools` extra is intentionally not installed.
+unreferenced `crewai-tools` extra is intentionally not installed. CrewAI is
+pinned to `1.15.33` and uses its native OpenAI SDK; the locked runtime graph
+contains no LiteLLM. This is a dependency and optional agent-routing change
+only; publishing a new image or switching a Kubernetes Secret requires
+separate operator approval.
 
 ## Development
 
