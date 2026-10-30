@@ -1,10 +1,11 @@
 from pathlib import Path
 from typing import Any, Dict, List
 
-from crewai import Agent, Crew, Process, Task
+from crewai import Agent, Crew, LLM, Process, Task
 from crewai.agents.agent_builder.base_agent import BaseAgent
 from crewai.project import CrewBase, agent, crew, task
 
+from auto_k8s_pilot.settings import SETTINGS
 from auto_k8s_pilot.tools.argocd_tool import ArgoCDTool
 from auto_k8s_pilot.tools.cloudflare_dns_tool import CloudflareDNSTool
 from auto_k8s_pilot.tools.github_issue_tool import GitHubIssueTool
@@ -27,17 +28,42 @@ class AutoK8sPilot:
     agents_config: Dict[str, Dict[str, Any]]
     tasks_config: Dict[str, Dict[str, Any]]
 
+    def _agent_config(self, agent_id: str) -> Dict[str, Any]:
+        """Use native OpenAI-compatible OpenRouter only when explicitly configured.
+
+        The standard Kubernetes deployment still uses OPENAI_API_KEY. Do not
+        silently switch providers when OPENROUTER_API_KEY is absent.
+        """
+        config = dict(self.agents_config[agent_id])
+        if not SETTINGS.OPENROUTER_API_KEY:
+            return config
+
+        model = config.get("llm")
+        if not isinstance(model, str) or not model:
+            raise ValueError(f"agent {agent_id} requires a configured model")
+
+        # CrewAI custom_openai strips one 'openai/' routing prefix. Prepending
+        # it here preserves OpenRouter's complete provider/model identifier.
+        config["llm"] = LLM(
+            model=f"openai/{model}",
+            custom_openai=True,
+            base_url=SETTINGS.OPENROUTER_BASE_URL,
+            api_key=SETTINGS.OPENROUTER_API_KEY,
+            temperature=config.get("temperature", 0.0),
+        )
+        return config
+
     @agent
     def reporting_analyst(self) -> Agent:
         return Agent(
-            config=self.agents_config['reporting_analyst'],
+            config=self._agent_config('reporting_analyst'),
             verbose=True,
         )
 
     @agent
     def k8s_operator(self) -> Agent:
         return Agent(
-            config=self.agents_config['k8s_operator'],
+            config=self._agent_config('k8s_operator'),
             verbose=True,
             tools=[KubectlTool()],
         )
@@ -45,14 +71,14 @@ class AutoK8sPilot:
     @agent
     def infra_architect(self) -> Agent:
         return Agent(
-            config=self.agents_config['infra_architect'],
+            config=self._agent_config('infra_architect'),
             verbose=True,
         )
 
     @agent
     def argocd_observer(self) -> Agent:
         return Agent(
-            config=self.agents_config['argocd_observer'],
+            config=self._agent_config('argocd_observer'),
             verbose=True,
             tools=[ArgoCDTool()],
         )
@@ -60,7 +86,7 @@ class AutoK8sPilot:
     @agent
     def loki_analyst(self) -> Agent:
         return Agent(
-            config=self.agents_config['loki_analyst'],
+            config=self._agent_config('loki_analyst'),
             verbose=True,
             tools=[LokiQueryTool()],
         )
@@ -68,7 +94,7 @@ class AutoK8sPilot:
     @agent
     def incident_triager(self) -> Agent:
         return Agent(
-            config=self.agents_config['incident_triager'],
+            config=self._agent_config('incident_triager'),
             verbose=True,
             tools=[GitHubIssueTool()],
         )
@@ -76,7 +102,7 @@ class AutoK8sPilot:
     @agent
     def cloudflare_admin(self) -> Agent:
         return Agent(
-            config=self.agents_config['cloudflare_admin'],
+            config=self._agent_config('cloudflare_admin'),
             verbose=True,
             tools=[CloudflareDNSTool()],
         )
@@ -84,7 +110,7 @@ class AutoK8sPilot:
     @agent
     def llm_gateway_observer(self) -> Agent:
         return Agent(
-            config=self.agents_config['llm_gateway_observer'],
+            config=self._agent_config('llm_gateway_observer'),
             verbose=True,
             tools=[OpenRouterHealthTool()],
         )
@@ -92,7 +118,7 @@ class AutoK8sPilot:
     @agent
     def mcp_bridge(self) -> Agent:
         return Agent(
-            config=self.agents_config['mcp_bridge'],
+            config=self._agent_config('mcp_bridge'),
             verbose=True,
             tools=[MCPK8sTool()],
         )
