@@ -1,188 +1,97 @@
 # AutoK8sPilot
 
-Multi-agent Kubernetes monitoring and incident management system powered by [crewAI](https://crewai.com).
+FastAPI and CrewAI service for inspecting Kubernetes and related platform
+integrations. It provides YAML-defined flows, bounded tools, and OpenTelemetry
+instrumentation for the `app-poly-gitops` engineering lab.
 
-## Features
+## Overview
 
-- **9 Specialized Agents**: k8s_operator, reporting_analyst, infra_architect, argocd_observer, loki_analyst, incident_triager, cloudflare_admin, llm_gateway_observer, mcp_bridge
-- **17 Tasks**: From pods overview to incident creation
-- **YAML Flow Orchestration**: Define execution flows in YAML
-- **FastAPI REST API**: HTTP endpoints for flow execution
-- **Observability**: OpenTelemetry tracing + structlog JSON logging
-- **Grounded health reports**: Cluster summaries distinguish observed resources
-  from unavailable metrics and unverified components
-- **Docker Ready**: Multi-stage build with uv package manager
+The default `k8s-healthcheck` flow is deterministic: it runs read-only
+`kubectl` queries, preserves their evidence scope, counts pod states without an
+LLM, and reports unavailable metrics as unknown. It does not infer that an
+unobserved component is healthy, unhealthy, installed, or absent.
 
-## Quick Start
+The longer `infra-health` flow also invokes CrewAI tasks for Argo CD, Loki,
+Cloudflare, an LLM gateway, MCP, and incident handling. Those steps require the
+corresponding endpoints and credentials. Mutating tool operations remain disabled
+unless `ALLOW_MUTATING=true`.
 
-### Local Development
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/health` | Service liveness |
+| `GET` | `/flows` | List discovered flow files |
+| `GET` | `/agents` | List configured agents |
+| `POST` | `/run` | Run the configured default flow |
+| `POST` | `/run/{flow_name}` | Run a named flow |
 
-```bash
-# Install dependencies
-pip install uv
-uv sync --dev
+Flow responses contain a final answer, completed step records, timing metadata,
+and a trace ID when tracing is active. Execution is synchronous; the API does not
+provide run persistence, progress streaming, or cancellation.
 
-# Run API server
+## Getting started
+
+Requirements: Python 3.10–3.13, [uv](https://docs.astral.sh/uv/), and
+`kubectl` for Kubernetes reads.
+
+~~~bash
+cp .env.example .env
+uv sync --locked --dev
 uv run api
+~~~
 
-# Or run crew directly
-uv run run_crew
-```
+The API listens on `http://127.0.0.1:8000` by default. Inspect the available
+flows and run the deterministic health check:
 
-### Docker
-
-```bash
-# Build image
-docker build -t auto-k8s-pilot .
-
-# Run container
-docker run -p 8000:8000 \
-  -e OPENAI_API_KEY=your-key \
-  auto-k8s-pilot
-```
-
-Published releases are available as
-`ghcr.io/justgithubaccount/app-poly-gitops-crewai:<version>`. The container includes
-the matching Kubernetes `kubectl` client and automatically configures the mounted
-service-account identity when it runs inside a cluster.
-
-## API Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Health check |
-| GET | `/flows` | List available flows |
-| GET | `/agents` | List available agents |
-| POST | `/run` | Run default flow (k8s-healthcheck) |
-| POST | `/run/{flow_name}` | Run specific flow |
-
-### Example
-
-```bash
-# Health check
-curl http://localhost:8000/health
-# {"status":"ok"}
-
-# List flows
-curl http://localhost:8000/flows
-# {"flows":["k8s-healthcheck","infra-health"]}
-
-# List agents
-curl http://localhost:8000/agents
-# {"agents":["k8s_operator","reporting_analyst",...]}
-
-# Run flow
-curl -X POST http://localhost:8000/run \
-  -H "Content-Type: application/json" \
+~~~bash
+curl http://127.0.0.1:8000/flows
+curl -X POST http://127.0.0.1:8000/run/k8s-healthcheck \
+  -H 'Content-Type: application/json' \
   -d '{"namespace":"default"}'
-```
+~~~
+
+Set `KUBECONFIG` or use the in-cluster service account identity. The container
+includes a matching `kubectl` client and configures the mounted service-account
+credentials at startup.
 
 ## Configuration
 
-### Environment Variables
+The complete example is in [.env.example](.env.example). Important boundaries:
 
-Copy `.env.example` to `.env` and configure:
+- `DEFAULT_NAMESPACE` and `DEFAULT_FLOW` select the default scope.
+- `ALLOW_MUTATING` defaults to `false`.
+- `OPENAI_API_KEY` is used by CrewAI tasks that call a model.
+- `ARGOCD_BASE_URL`, `LOKI_URL`, Cloudflare, GitHub, OpenRouter, and MCP
+  variables configure optional integrations.
+- `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_TRACES_EXPORTER=otlp` enable trace
+  export; export is disabled by default.
 
-```bash
-# Core
-DEFAULT_NAMESPACE=default
-ALLOW_MUTATING=false
-OPENAI_API_KEY=your-key
+## Repository structure
 
-# API Server
-API_HOST=0.0.0.0
-API_PORT=8000
-
-# OpenTelemetry
-OTEL_SERVICE_NAME=auto-k8s-pilot
-OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
-OTEL_TRACES_EXPORTER=otlp
-
-# Optional OpenRouter gateway health integration
-OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-OPENROUTER_API_KEY=your-key
-
-# Optional integrations
-# ARGOCD_BASE_URL=https://argocd.example.com
-# ARGOCD_API_TOKEN=
-ARGOCD_VERIFY_SSL=true
-# LOKI_URL=http://loki:3100
-# CLOUDFLARE_API_TOKEN=
-# GITHUB_TOKEN=
-```
-
-Mutating tools, including Argo CD sync, Cloudflare DNS upsert, and GitHub issue
-creation, require `ALLOW_MUTATING=true`. MCP configuration output references
-`MCP_K8S_API_KEY` by name and never includes its secret value.
-
-### YAML Flows
-
-Flows are defined in `src/auto_k8s_pilot/config/layers/`:
-
-- `flow-k8s-healthcheck.yaml` - Kubernetes health monitoring
-- `flow-infra-health.yaml` - Infrastructure health check
-
-Example flow:
-
-```yaml
-steps:
-  - run: k8s_pods_overview
-  - run: explain_pods
-  - run: k8s_top_nodes
-  - run: cluster_summary
-  - run: incident_create_issue_if_needed
-```
-
-## Project Structure
-
-```
-src/auto_k8s_pilot/
-├── api.py              # FastAPI REST API
-├── crew.py             # CrewAI agents and tasks
-├── flow_runner.py      # YAML flow orchestrator
-├── settings.py         # Pydantic settings
-├── tools/              # Custom tools (kubectl, argocd, loki, etc.)
-├── config/
-│   ├── agents.yaml     # Agent definitions
-│   ├── tasks.yaml      # Task definitions
-│   └── layers/
-│       ├── behavior.yaml
-│       ├── flow-k8s-healthcheck.yaml
-│       └── flow-infra-health.yaml
-└── observability/
-    ├── logger.py       # structlog JSON logging
-    └── tracing.py      # OpenTelemetry setup
-```
-
-## Agents
-
-| Agent | Role |
-|-------|------|
-| k8s_operator | Kubernetes cluster operations |
-| reporting_analyst | Report generation |
-| infra_architect | Infrastructure analysis |
-| argocd_observer | ArgoCD monitoring |
-| loki_analyst | Log analysis |
-| incident_triager | Incident management |
-| cloudflare_admin | DNS management |
-| llm_gateway_observer | LLM gateway health |
-| mcp_bridge | MCP server integration |
+- `src/auto_k8s_pilot/api.py` — HTTP API
+- `src/auto_k8s_pilot/flow_runner.py` — YAML flow execution and deterministic health reporting
+- `src/auto_k8s_pilot/crew.py` — CrewAI agents and tasks
+- `src/auto_k8s_pilot/config/` — agent, task, behavior, and flow definitions
+- `src/auto_k8s_pilot/tools/` — Kubernetes and integration tools
+- `tests/` — contract, safety, flow, telemetry, and container tests
 
 ## Development
 
-```bash
-# Install dev dependencies
-uv sync --dev
+~~~bash
+uv run ruff check src tests
+OTEL_SDK_DISABLED=true uv run pytest
+uv run mypy src
+sh tests/test_container_entrypoint.sh
+~~~
 
-# Run tests
-uv run pytest
+Tagged releases publish
+`ghcr.io/justgithubaccount/app-poly-gitops-crewai:<version>`.
 
-# Type check
-uv run mypy src/
+## Related repositories
 
-# Lint
-uv run ruff check src/
-```
+- [app-poly-gitops-ui](https://github.com/justgithubaccount/app-poly-gitops-ui) — manual flow UI
+- [app-poly-gitops-k8s](https://github.com/justgithubaccount/app-poly-gitops-k8s) — Kubernetes runtime and RBAC
+- [app-poly-gitops-infra](https://github.com/justgithubaccount/app-poly-gitops-infra) — provisioning and smoke workflows
+- [app-mono-gitops](https://github.com/justgithubaccount/app-mono-gitops) — archived predecessor
 
 ## License
 
