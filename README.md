@@ -63,7 +63,15 @@ The complete example is in [.env.example](.env.example). Important boundaries:
 
 - `DEFAULT_NAMESPACE` and `DEFAULT_FLOW` select the default scope.
 - `ALLOW_MUTATING` defaults to `false`.
-- `OPENAI_API_KEY` is used by CrewAI tasks that call a model.
+- `OPENAI_API_KEY` remains the default credential for CrewAI model tasks.
+- When `OPENROUTER_API_KEY` is explicitly supplied, the same CrewAI agents
+  instead use the **native OpenAI-compatible SDK** with
+  `OPENROUTER_BASE_URL=https://openrouter.ai/api/v1`. Their existing model
+  identifiers are passed to OpenRouter unchanged. No LiteLLM is installed.
+  This is an opt-in runtime choice: the existing Kubernetes Deployment
+  supplies `OPENAI_API_KEY`, so it is not silently rerouted.
+- `OPENROUTER_BASE_URL` alone does not switch the agent provider; the health
+  tool continues to use this URL independently for `/models` and ping.
 - `ARGOCD_BASE_URL`, `LOKI_URL`, Cloudflare, GitHub, OpenRouter, and MCP
   variables configure optional integrations.
 - `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_TRACES_EXPORTER=otlp` enable trace
@@ -86,7 +94,22 @@ optional/unknown rather than grounds for deleting their compatibility surface.
 `config/layers/crew-infra-cluster.yaml` is likewise descriptive scaffold; the
 active API registry and flow definitions are `behavior.yaml` and `flow-*.yaml`.
 The service uses custom `BaseTool` implementations from CrewAI core; the
-unreferenced `crewai-tools` extra is intentionally not installed.
+unreferenced `crewai-tools` extra is intentionally not installed. CrewAI is
+pinned to `1.15.33` and uses its native OpenAI SDK; the locked runtime graph
+contains no LiteLLM. This is a dependency and optional agent-routing change
+only; publishing a new image or switching a Kubernetes Secret requires
+separate operator approval.
+
+CrewAI currently requires ChromaDB transitively even when vector storage is not
+used. This service explicitly keeps Crew memory disabled, defines no knowledge
+sources or storage, does not construct a Chroma client, and starts only this
+FastAPI process on port 8000; it does not start Chroma's Python server. These
+boundaries make the published Chroma server and shared-client attack paths
+unreachable in the current application configuration, but they do not remove
+the affected package. The locked ChromaDB `1.5.9` still has four published
+advisories with no listed fixed version, so this is a containment boundary, not
+a security closure. Enabling CrewAI memory/knowledge or a remote Chroma client
+requires a separate dependency and exposure review.
 
 ## Development
 

@@ -1,10 +1,8 @@
 """Tests for FlowRunner."""
 
-import types
-
-import litellm
 import pytest
 import yaml
+from crewai.llms.providers.openai.completion import OpenAICompletion
 
 from auto_k8s_pilot.crew import AutoK8sPilot
 from auto_k8s_pilot.flow_runner import FlowRunner
@@ -197,16 +195,10 @@ def test_run_flow_executes_real_crewai_task(monkeypatch, tmp_path):
     """Catch regressions that call a removed CrewAI Task execution method."""
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
-    def fake_completion(*args, **kwargs):
-        return types.SimpleNamespace(
-            choices=[
-                types.SimpleNamespace(
-                    message=types.SimpleNamespace(content="pod-1 1/1 Running 2d node-a")
-                )
-            ]
-        )
+    def fake_completion(self, messages, **kwargs):
+        return "pod-1 1/1 Running 2d node-a"
 
-    monkeypatch.setattr(litellm, "completion", fake_completion)
+    monkeypatch.setattr(OpenAICompletion, "call", fake_completion)
     write_flow_config(tmp_path, task_id="llm_gateway_health")
 
     runner = FlowRunner(AutoK8sPilot(), tmp_path)

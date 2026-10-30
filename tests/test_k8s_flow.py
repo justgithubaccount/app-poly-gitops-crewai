@@ -1,8 +1,6 @@
 # tests/test_k8s_flow.py
-import types
-
-import litellm
 from crewai import Crew, Process
+from crewai.llms.providers.openai.completion import OpenAICompletion
 
 from auto_k8s_pilot.crew import AutoK8sPilot
 from auto_k8s_pilot.tools import kubectl_tool as ktool
@@ -19,16 +17,10 @@ def test_k8s_health_flow(monkeypatch, tmp_path):
 
     monkeypatch.setenv("OPENAI_API_KEY", "test")
 
-    def fake_completion(*args, **kwargs):
-        return types.SimpleNamespace(
-            choices=[
-                types.SimpleNamespace(
-                    message=types.SimpleNamespace(content="pod-1 CrashLoopBackOff")
-                )
-            ]
-        )
+    def fake_completion(self, messages, **kwargs):
+        return "pod-1 CrashLoopBackOff"
 
-    monkeypatch.setattr(litellm, "completion", fake_completion)
+    monkeypatch.setattr(OpenAICompletion, "call", fake_completion)
 
     c = AutoK8sPilot()
     crew = Crew(
