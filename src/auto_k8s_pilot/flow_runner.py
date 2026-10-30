@@ -102,12 +102,11 @@ class FlowRunner:
         flow = self.load_flow(flow_name)
         steps_config = flow.get("steps", [])
 
-        # Load behavior.yaml for task -> agent mapping
         behavior = self._load_behavior()
         task_agent_map = {t["id"]: t["agent"] for t in behavior.get("tasks", [])}
 
         results: List[Dict[str, Any]] = []
-        context: Dict[str, str] = {}  # accumulated context from previous steps
+        context: Dict[str, str] = {}
         total_start = time.time()
 
         for step in steps_config:
@@ -115,7 +114,6 @@ class FlowRunner:
             if not task_id:
                 continue
 
-            # Check if task exists
             task_method = self.tasks_map.get(task_id)
             if not task_method:
                 enrich_context(
@@ -155,7 +153,7 @@ class FlowRunner:
                 if deterministic is not None:
                     output, evidence_scope = deterministic
                 else:
-                    task = task_method()  # Get CrewAI Task object
+                    task = task_method()
                     task_context = yaml.safe_dump(
                         {**inputs, **context},
                         allow_unicode=True,
@@ -183,14 +181,12 @@ class FlowRunner:
                 }
             )
 
-            # Add to context for next steps
             context[task_id] = output
             if evidence_scope:
                 context[f"{task_id}_scope"] = evidence_scope
 
         total_duration_ms = int((time.time() - total_start) * 1000)
 
-        # Determine final answer
         final_answer = self._extract_final_answer(results)
         metadata = self._extract_metadata(results)
         metadata["total_duration_ms"] = total_duration_ms
@@ -373,7 +369,6 @@ class FlowRunner:
         metadata: Dict[str, Any] = {}
         for r in results:
             if r["task"] == "cluster_summary":
-                # Extract first 500 chars as summary
                 metadata["cluster_summary"] = r["output"][:500] if r["output"] else ""
             if r["task"] == "incident_create_issue_if_needed":
                 if "Created issue" in r.get("output", ""):

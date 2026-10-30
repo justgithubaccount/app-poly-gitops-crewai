@@ -17,10 +17,8 @@ app = FastAPI(
     version=SETTINGS.APP_VERSION,
 )
 
-# Setup OpenTelemetry tracing
 setup_tracing(app)
 
-# Initialize
 crew_instance = AutoK8sPilot()
 flow_runner = FlowRunner(crew_instance, CONFIG_DIR)
 

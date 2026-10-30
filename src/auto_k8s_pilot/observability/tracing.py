@@ -39,13 +39,11 @@ def setup_tracing(app: Any) -> None:
         logging.getLogger(__name__).info("OpenTelemetry export disabled")
         return
 
-    # Resource with service and Kubernetes metadata
     resource = Resource(
         attributes={
             "service.name": SETTINGS.OTEL_SERVICE_NAME,
             "service.version": SETTINGS.APP_VERSION,
             "deployment.environment": SETTINGS.ENVIRONMENT,
-            # Kubernetes metadata
             "k8s.pod.name": SETTINGS.K8S_POD_NAME or "unknown",
             "k8s.namespace": SETTINGS.K8S_NAMESPACE or "default",
             "k8s.node.name": SETTINGS.K8S_NODE_NAME or "unknown",
@@ -55,14 +53,13 @@ def setup_tracing(app: Any) -> None:
         }
     )
 
-    # For HTTP protocol add correct paths
+    # OTLP/HTTP exporters require a signal-specific path.
     traces_endpoint = (
         f"{otlp_endpoint}/v1/traces"
         if not otlp_endpoint.endswith("/v1/traces")
         else otlp_endpoint
     )
 
-    # === TRACES ===
     provider = TracerProvider(resource=resource)
 
     headers = None
@@ -83,11 +80,9 @@ def setup_tracing(app: Any) -> None:
     provider.add_span_processor(trace_processor)
     trace.set_tracer_provider(provider)
 
-    # Configure root logger
     root_logger = logging.getLogger()
     root_logger.setLevel(getattr(logging, SETTINGS.LOG_LEVEL.upper()))
 
-    # Console handler
     if SETTINGS.ENVIRONMENT == "production":
         import json
 
@@ -118,14 +113,12 @@ def setup_tracing(app: Any) -> None:
         )
         root_logger.addHandler(console_handler)
 
-    # FastAPI instrumentation
     FastAPIInstrumentor().instrument_app(
         app,
         tracer_provider=provider,
         server_request_hook=server_request_hook,
     )
 
-    # Log successful initialization
     logger = logging.getLogger(__name__)
     logger.info(
         "OpenTelemetry initialized",

@@ -6,7 +6,6 @@ from typing import Any, Dict, cast
 import structlog
 from opentelemetry import trace
 
-# Context variables for additional attributes
 log_context: ContextVar[Dict[str, Any]] = ContextVar("log_context", default={})
 
 
@@ -24,7 +23,6 @@ class EnrichedLogger:
             event_dict["trace_id"] = format(span_context.trace_id, "032x")
             event_dict["span_id"] = format(span_context.span_id, "016x")
 
-        # Add context variables
         event_dict.update(log_context.get())
 
         return event_dict
@@ -51,7 +49,6 @@ class EnrichedLogger:
         self.logger.debug(msg, **kwargs)
 
 
-# Initialize structlog
 structlog.configure(
     processors=[
         structlog.stdlib.filter_by_level,
@@ -69,7 +66,6 @@ structlog.configure(
     cache_logger_on_first_use=True,
 )
 
-# Base logger
 base_logger = structlog.get_logger()
 
 

@@ -32,11 +32,11 @@ class Settings(BaseSettings):
     # OpenRouter (LLM Gateway)
     OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
     OPENROUTER_API_KEY: Optional[str] = None
-    OPENROUTER_SITE_URL: Optional[str] = None  # optional Referer
-    OPENROUTER_APP_NAME: Optional[str] = None  # optional X-Title
+    OPENROUTER_SITE_URL: Optional[str] = None
+    OPENROUTER_APP_NAME: Optional[str] = None
 
     # MCP Kubernetes server
-    MCP_K8S_SERVER_URL: Optional[str] = None   # ws:// or wss:// if applicable
+    MCP_K8S_SERVER_URL: Optional[str] = None
     MCP_K8S_API_KEY: Optional[str] = None
     MCP_K8S_INSECURE: bool = False
     # Optional stdio command, for example "mcp-server-kubernetes".
@@ -71,10 +71,8 @@ class Settings(BaseSettings):
     # Flow
     DEFAULT_FLOW: str = "k8s-healthcheck"
 
-# Singleton
 SETTINGS = Settings()
 
-# Paths
 BASE_DIR = Path(__file__).parent
 CONFIG_DIR = BASE_DIR / "config"
 LAYERS_DIR = CONFIG_DIR / "layers"

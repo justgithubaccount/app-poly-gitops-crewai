@@ -7,19 +7,12 @@ from auto_k8s_pilot.crew import AutoK8sPilot
 
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 
-# --- Local runner for the Crew ------------------------------------------------
-# This file is just an entrypoint to run your crew locally.
-# Keep it simple: only pass runtime inputs if you really need to.
-# Otherwise, tasks.yaml already describes what to run.
-
-
 def run():
     """
     Run the crew (sequential process by default).
     """
-    # Example: you can override inputs here if needed
     inputs = {
-        "namespace": "all",  # or "default"
+        "namespace": "all",
         "current_year": str(datetime.now().year),
     }
 
