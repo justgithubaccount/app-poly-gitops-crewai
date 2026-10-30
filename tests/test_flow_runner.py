@@ -1,8 +1,8 @@
 """Tests for FlowRunner."""
 
-from crewai.llms.providers.openai.completion import OpenAICompletion
 import pytest
 import yaml
+from crewai.llms.providers.openai.completion import OpenAICompletion
 
 from auto_k8s_pilot.crew import AutoK8sPilot
 from auto_k8s_pilot.flow_runner import FlowRunner
