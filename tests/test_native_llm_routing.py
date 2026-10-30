@@ -85,3 +85,19 @@ def test_openrouter_agent_rejects_missing_model(monkeypatch) -> None:
     )
     with pytest.raises(ValueError, match="requires a configured model"):
         AutoK8sPilot._agent_config(fake, "broken")
+
+
+def test_crewai_openrouter_route_is_native_without_network() -> None:
+    """Verify real CrewAI routing preserves the provider/model ID."""
+    from crewai import LLM
+    from crewai.llms.providers.openai.completion import OpenAICompletion
+
+    provider = LLM(
+        model="openai/openai/gpt-4o-mini",
+        custom_openai=True,
+        base_url="https://openrouter.ai/api/v1",
+        api_key="fixture-only",
+    )
+    assert isinstance(provider, OpenAICompletion)
+    assert provider.model == "openai/gpt-4o-mini"
+    assert provider.custom_openai is True
