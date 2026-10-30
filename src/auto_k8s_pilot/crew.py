@@ -211,6 +211,10 @@ class AutoK8sPilot:
             agents=self.agents,
             tasks=self.tasks,
             process=Process.sequential,
+            # Keep the transitive vector-store path unreachable. This service
+            # has no memory/knowledge contract; enabling one is a reviewed
+            # security and persistence change, not a CrewAI default.
+            memory=False,
             verbose=True,
         )
 

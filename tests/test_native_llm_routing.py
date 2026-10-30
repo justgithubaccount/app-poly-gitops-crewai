@@ -101,3 +101,25 @@ def test_crewai_openrouter_route_is_native_without_network() -> None:
     assert isinstance(provider, OpenAICompletion)
     assert provider.model == "openai/gpt-4o-mini"
     assert provider.custom_openai is True
+
+
+def test_crewai_does_not_initialize_chromadb_memory_or_knowledge(monkeypatch) -> None:
+    """The mandatory Chroma dependency must stay outside the application path."""
+    from crewai.rag.chromadb import factory as chromadb_factory
+
+    persistent_client = Mock(side_effect=AssertionError("ChromaDB client initialized"))
+    monkeypatch.setattr(chromadb_factory, "PersistentClient", persistent_client)
+    monkeypatch.setenv("OPENAI_API_KEY", "fixture-only")
+
+    crew = AutoK8sPilot().crew()
+
+    assert crew.memory is False
+    assert crew._memory is None
+    assert crew.knowledge is None
+    assert crew.knowledge_sources is None
+    for agent in crew.agents:
+        assert agent.memory is None
+        assert agent.knowledge is None
+        assert agent.knowledge_sources is None
+        assert agent.knowledge_storage is None
+    persistent_client.assert_not_called()

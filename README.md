@@ -100,6 +100,17 @@ contains no LiteLLM. This is a dependency and optional agent-routing change
 only; publishing a new image or switching a Kubernetes Secret requires
 separate operator approval.
 
+CrewAI currently requires ChromaDB transitively even when vector storage is not
+used. This service explicitly keeps Crew memory disabled, defines no knowledge
+sources or storage, does not construct a Chroma client, and starts only this
+FastAPI process on port 8000; it does not start Chroma's Python server. These
+boundaries make the published Chroma server and shared-client attack paths
+unreachable in the current application configuration, but they do not remove
+the affected package. The locked ChromaDB `1.5.9` still has four published
+advisories with no listed fixed version, so this is a containment boundary, not
+a security closure. Enabling CrewAI memory/knowledge or a remote Chroma client
+requires a separate dependency and exposure review.
+
 ## Development
 
 ~~~bash
