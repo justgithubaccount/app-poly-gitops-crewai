@@ -1,0 +1,52 @@
+name: One-off CrewAI lock security audit (feature branch only)
+on:
+  push:
+    branches:
+      - fix/crewai-native-openrouter-no-litellm
+    paths:
+      - .github/workflows/oneoff-security-audit.yml
+permissions:
+  contents: read
+jobs:
+  audit:
+    if: github.repository == 'justgithubaccount/app-poly-gitops-crewai'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.2
+      - name: Export exact locked runtime dependencies
+        run: uv export --locked --no-dev --no-hashes --no-emit-project --format requirements-txt > runtime-requirements.txt
+      - name: Audit without installing application packages
+        run: |
+          set +e
+          uvx --from pip-audit==2.10.1 pip-audit --disable-pip --no-deps --vulnerability-service osv -r runtime-requirements.txt -f json -o audit.json
+          result=$?
+          echo "pip-audit exit code: $result"
+          test -s audit.json
+      - name: Report package and advisory IDs
+        run: |
+          python3 - <<'PY'
+          import json
+          import pathlib
+          data = json.loads(pathlib.Path("audit.json").read_text())
+          findings = []
+          unique = set()
+          for dep in data.get("dependencies", []):
+              for vuln in dep.get("vulns", []):
+                  unique.add(vuln["id"])
+                  unique.update(vuln.get("aliases") or [])
+                  findings.append((dep["name"], dep["version"], vuln["id"], ",".join(vuln.get("fix_versions") or [])))
+          print(f"Dependency advisories: {len(findings)} records / {len(set(n for n, _, _, _ in findings))} packages; {len(unique)} identifiers including aliases")
+          for entry in sorted(findings):
+              print(" | ".join(entry))
+          if any(d["name"].lower() == "litellm" for d in data.get("dependencies", [])):
+              raise SystemExit("LiteLLM still present")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-crewai-pip-audit
+          path: |
+            audit.json
+            runtime-requirements.txt
+          retention-days: 7
