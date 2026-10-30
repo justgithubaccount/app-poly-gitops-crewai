@@ -163,7 +163,9 @@ class AutoK8sPilot:
 
     @task
     def argocd_app_status_chat_api(self) -> Task:
-        return self._task_from_config("argocd_app_status_chat_api", "output/argocd_chat_api_status.md")
+        return self._task_from_config(
+            "argocd_app_status_chat_api", "output/argocd_chat_api_status.md"
+        )
 
     @task
     def argocd_sync_chat_api(self) -> Task:
@@ -171,7 +173,9 @@ class AutoK8sPilot:
 
     @task
     def loki_recent_errors_chat_api(self) -> Task:
-        return self._task_from_config("loki_recent_errors_chat_api", "output/loki_chat_api_errors.md")
+        return self._task_from_config(
+            "loki_recent_errors_chat_api", "output/loki_chat_api_errors.md"
+        )
 
     @task
     def loki_http_activity_chat_api(self) -> Task:
